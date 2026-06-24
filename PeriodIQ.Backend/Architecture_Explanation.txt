@@ -1,0 +1,22 @@
+GIẢI THÍCH KIẾN TRÚC: AWS SERVERLESS + 5 PROJECT CLEAN ARCHITECTURE
+
+Trong sơ đồ kiến trúc AWS của hệ thống PeriodIQ, chúng ta thấy có 4 biểu tượng AWS Lambda riêng biệt:
+1. Lambda - API Handler
+2. Lambda - Admin API
+3. Lambda - Rule Engine
+4. Lambda - Worker
+
+Tuy nhiên, trong code .NET Clean Architecture, chúng ta KHÔNG CẦN phải tạo 4 project riêng biệt. Chúng ta hoàn toàn có thể TUYỆT ĐỐI GIỮ NGUYÊN 5 PROJECT cơ bản:
+- PeriodIQ.Api
+- PeriodIQ.Core
+- PeriodIQ.Domain
+- PeriodIQ.Infrastructure
+- PeriodIQ.Share
+
+LÝ DO VÀ CÁCH ÁNH XẠ:
+1. "Monolithic Lambda": Nhờ thư viện `Amazon.Lambda.AspNetCoreServer.Hosting`, toàn bộ project `PeriodIQ.Api` có thể được gói gọn và đưa lên chạy như một Lambda khổng lồ duy nhất trên AWS. Mọi request từ API Gateway (dù là của User hay Admin) đều sẽ được đẩy vào Lambda này, và các Controller bên trong sẽ phân luồng.
+2. Rule Engine và Worker: Thay vì là các Lambda tách biệt, logic tính toán (Rule Engine) và logic xử lý background (Worker) sẽ được gọi trực tiếp từ bên trong `PeriodIQ.Api` (có thể dùng BackgroundService hoặc gọi hàm đồng bộ).
+3. Sức mạnh của Clean Architecture: Các project `Core` (chứa logic) và `Infrastructure` (kết nối DynamoDB, SQS) được tách rời. Nhờ vậy, `PeriodIQ.Api` chỉ làm nhiệm vụ tiếp nhận request và gọi vào `Core`. Nếu sau này dự án phình to, chúng ta muốn tách 4 Lambda thành 4 project riêng thì chỉ việc tạo project mới tham chiếu tới `Core`, không phải viết lại logic.
+
+KẾT LUẬN:
+Giữ 5 project giúp quá trình phát triển (code) đơn giản, gọn gàng đúng thói quen hiện tại, không phải bảo trì nhiều project rườm rà, trong khi vẫn hoàn toàn đáp ứng được khả năng chạy Serverless trên AWS.

@@ -1,0 +1,39 @@
+Tổng quan hệ thống PeriodIQ
+
+PeriodIQ là hệ thống kiến trúc Serverless trên AWS (Region ap-southeast-1), frontend là React + Vite (SPA), giúp người tập gym tự động hóa việc lên giáo án theo chu kỳ (Periodization). Hệ thống dùng một Rule Engine chạy trên AWS Lambda mô phỏng tư duy huấn luyện viên để xuất ra giáo án 4 tuần chuẩn khoa học, giúp tránh chấn thương do kiệt sức thần kinh (CNS) và phân bổ tạ hợp lý. Hệ thống chia thành 7 tầng chức năng, có 3 nhóm actor: User (người tập), Admin (quản trị), Developer (triển khai mã nguồn).
+
+1. Edge & Security (Tầng Biên & Bảo mật)
+
+User truy cập hệ thống (web + API), request đi qua AWS WAF để chặn tấn công (SQL Injection, XSS, bot) trước khi vào Amazon CloudFront.
+CloudFront phân luồng thành 2 nhánh: request tĩnh → trả file React + Vite từ Amazon S3; request /api → chuyển tiếp đến API Gateway.
+Admin cũng truy cập qua CloudFront (Admin console) với cùng luồng bảo mật WAF.
+2. Auth Layer (Tầng Xác thực)
+
+User và Admin đều xác thực qua Amazon Cognito, nhận JWT Token.
+JWT Authorizer được gắn trực tiếp trên API Gateway (HTTP) — mọi request /api phải mang token hợp lệ mới được invoke Lambda.
+3. API Layer (Tầng Định tuyến)
+
+API Gateway (HTTP API) nhận request từ CloudFront, xác minh JWT qua Cognito Authorizer, sau đó:
+Request của User → invoke Lambda · API Handler.
+Request của Admin → invoke Lambda · Admin API.
+4. Core Engine Layer (Tầng Tính toán — Lambda)
+
+Lambda · API Handler: Điểm vào chính cho request User. Nhận form data, điều phối toàn bộ luồng xử lý. Gọi Lambda Rule Engine để tính giáo án; đẩy job bất đồng bộ vào SQS; ghi Logs & Metrics lên CloudWatch.
+Lambda · Rule Engine: Chạy bộ luật khoa học (Volume → Conflict → Progression) để sinh giáo án 4 tuần, sau đó ghi kết quả (Save plan) vào DynamoDB.
+Lambda · Admin API: Xử lý thao tác quản trị — quản lý bộ luật, template giáo án, xem thống kê. Đọc/ghi dữ liệu (Manage data) vào DynamoDB.
+5. Data Layer (Tầng Dữ liệu)
+
+Amazon DynamoDB (on-demand + TTL cache): Cơ sở dữ liệu NoSQL duy nhất, đảm nhận cả lưu trữ lâu dài lẫn caching. On-demand capacity tự co giãn throughput; TTL cache giúp truy vấn giáo án đã tính toán cực nhanh mà không cần quản lý cache server riêng.
+6. Async / Messaging Layer (Tầng Bất đồng bộ)
+
+Tác vụ chậm (email giáo án, nhắc lịch tập) được tách khỏi luồng chính:
+Lambda API Handler → SQS (queue) (Enqueue job) → Lambda · Worker (Trigger) → SNS / SES (Publish) → gửi Email / Workout reminder đến User.
+Nhờ vậy API Handler luôn phản hồi nhanh, không bị block bởi việc gửi email.
+7. Monitoring Layer (Tầng Giám sát)
+CloudWatch Logs: Thu thập log từ Lambda API Handler để debug, audit.
+CloudWatch Metrics: Ghi nhận metric hiệu năng (duration, error rate, throttle).
+CloudWatch Alarm: Khi metric vượt ngưỡng (Threshold) → kích hoạt cảnh báo.
+8. CI/CD Layer — Dev (Tầng Triển khai Tự động)
+
+Developer push code → CodePipeline → CodeBuild (Build & test) → CloudFormation / SAM (Package) → Deploy lên Lambda · API Handler.
+Toàn bộ pipeline tự động, zero-downtime deployment.

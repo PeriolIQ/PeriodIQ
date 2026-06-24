@@ -1,0 +1,102 @@
+TÀI LIỆU THIẾT KẾ CƠ SỞ DỮ LIỆU (DATABASE SCHEMA)
+Dự án: Hệ thống PeriodIQ - Tự động hóa giáo án theo chu kỳ
+Kiểu Database: NoSQL (Amazon DynamoDB)
+Tổng số bảng (Entities): 8 bảng
+
+---------------------------------------------------------
+NHÓM 1: QUẢN TRỊ DỮ LIỆU GỐC (MASTER DATA - Dành cho Admin)
+---------------------------------------------------------
+
+1. Bảng EXERCISE (Danh mục bài tập chuẩn)
+Mô tả: Lưu trữ các bài tập làm cơ sở dữ liệu gốc. Không thể tùy tiện thêm bớt bởi user.
+Các trường dữ liệu:
+- Id (String): Khóa chính
+- Name (String): Tên bài tập (VD: Barbell Bench Press)
+- PrimaryMuscleGroup (String): Nhóm cơ chính tác động (VD: Chest)
+- SecondaryMuscleGroup (String): Nhóm cơ phụ tác động (VD: Triceps)
+- EquipmentType (String): Dụng cụ (Barbell, Dumbbell, Machine...)
+- CnsStressScore (Int): Điểm gây mệt mỏi thần kinh trung ương (1-10). Rất quan trọng để Rule Engine xếp lịch không bị quá tải.
+- IsEligibleForPersonalRecord (Bool): Có được dùng để đo Kỷ lục cá nhân (PR) hay không. (Ví dụ Squat là True, Bicep Curl là False).
+
+2. Bảng WORKOUT_TEMPLATE (Mẫu giáo án khung)
+Mô tả: Bộ khung có sẵn do chuyên gia/HLV thiết kế (VD: Push-Pull-Legs 6 buổi/tuần).
+Các trường dữ liệu:
+- Id (String): Khóa chính
+- TemplateName (String): Tên mẫu
+- Goal (String): Mục tiêu (Strength, Hypertrophy...)
+- SuitableFitnessLevel (String): Trình độ phù hợp (Beginner, Advanced)
+- Days (List<TemplateDay>): Danh sách các ngày trong khung (lồng nhau).
+  + Mỗi Day chứa: FocusArea (Nhóm cơ tập trung) và danh sách TemplateExercise.
+  + TemplateExercise chỉ quy định: Số Hiệp (TargetSets), Số Lần (TargetRepRange), và Cường độ dự kiến (TargetIntensityPercentage), KHÔNG có số Kg cụ thể.
+
+3. Bảng RULE_DEFINITION (Bộ luật khoa học)
+Mô tả: Chứa các quy tắc tính toán để Lambda Rule Engine áp dụng.
+Các trường dữ liệu:
+- Id (String): Khóa chính
+- Category (String): Phân loại luật (VolumeRule, ConflictRule, ProgressionRule...)
+- RuleName (String): Tên luật
+- Description (String): Mô tả chi tiết (VD: "Không tập quá 20 hiệp ngực 1 tuần")
+- RuleParametersJson (String): Chuỗi JSON cấu hình thông số luật để parse tự động.
+- PriorityOrder (Int): Độ ưu tiên xử lý luật.
+
+---------------------------------------------------------
+NHÓM 2: HỒ SƠ & TRACKING THỂ TRẠNG (Dành cho User)
+---------------------------------------------------------
+
+4. Bảng USER_PROFILE (Hồ sơ người tập)
+Mô tả: Lưu thông tin cá nhân và mục tiêu dài hạn.
+Các trường dữ liệu:
+- Id (String): Khóa chính (Map với ID của hệ thống Auth - Cognito)
+- Email, FullName, Gender (String): Thông tin cơ bản
+- BodyWeightKg (Decimal): Cân nặng
+- FitnessLevel (String): Trình độ hiện tại
+- PrimaryGoal (String): Mục tiêu cốt lõi
+- AvailableDaysPerWeek (Int): Thời gian rảnh để đi tập
+- SubscriptionTier (String): Gói cước tài khoản (Free, Pro, Premium)
+
+5. Bảng PERSONAL_RECORD_HISTORY (Lịch sử Kỷ lục cá nhân)
+Mô tả: Theo dõi mức tạ tối đa (PR/Max Lift) của User. Rule Engine BẮT BUỘC cần bảng này để chia % tạ tự động.
+Các trường dữ liệu:
+- Id (String): Khóa chính
+- UserId (String): FK tới UserProfile
+- ExerciseId (String): FK tới bảng Exercise
+- WeightKg (Decimal): Mức tạ kỷ lục đạt được
+- AchievedDate (DateTime): Ngày đạt kỷ lục
+- RpeAtThatTime (Decimal): Điểm cảm nhận độ khó lúc đẩy mức tạ này
+
+6. Bảng DAILY_CNS_STATUS (Trạng thái phục hồi hằng ngày)
+Mô tả: Check-in hằng ngày của User trước khi đi tập để đánh giá sự mỏi thần kinh.
+Các trường dữ liệu:
+- Id (String): Khóa chính
+- UserId (String): FK tới UserProfile
+- DateLog (DateTime): Ngày check-in
+- SleepHours (Decimal): Số giờ ngủ đêm qua
+- StressLevel (Int): Mức độ stress công việc/cuộc sống (1-10)
+- MuscleSorenessLevel (Int): Mức độ đau nhức cơ bắp (1-10)
+- ReadinessScore (Int): Điểm sẵn sàng do hệ thống tổng hợp để quyết định có giảm tạ (Deload) hay không.
+
+---------------------------------------------------------
+NHÓM 3: CỐT LÕI SINH GIÁO ÁN (Hệ thống tự sinh)
+---------------------------------------------------------
+
+7. Bảng WORKOUT_PLAN (Giáo án chu kỳ thực tế)
+Mô tả: Giáo án 4-8 tuần ĐÃ ĐƯỢC RULE ENGINE TÍNH TOÁN và áp tạ cụ thể cho từng User.
+Các trường dữ liệu:
+- Id (String): Khóa chính
+- UserId (String): FK tới UserProfile
+- TemplateId (String): Dựa trên bộ khung nào
+- StartDate, EndDate (DateTime): Thời gian bắt đầu và kết thúc chu kỳ
+- Status (String): Trạng thái (Active, Completed...)
+- Weeks (List<WeeklyPlan>): Mảng chứa các tuần, mỗi tuần chứa các ngày tập (DailyWorkout).
+  + Trong DailyWorkout chứa ExerciseSet: Lưu MỨC TẠ CỤ THỂ (TargetWeightKg) mà hệ thống đã tính ra riêng cho User đó.
+
+8. Bảng WORKOUT_SESSION_LOG (Nhật ký thực tập)
+Mô tả: Lưu thông số THỰC TẾ sau buổi tập (Vì không phải lúc nào User cũng đẩy đúng như WorkoutPlan lên lịch).
+Các trường dữ liệu:
+- Id (String): Khóa chính
+- UserId (String): FK tới UserProfile
+- WorkoutPlanId (String): FK tới WorkoutPlan hiện tại
+- WeekNumber, Day (Int/Enum): Thông tin ngày nào trong chu kỳ
+- CompletedAt (DateTime): Thời gian tập xong
+- OverallSessionRpe (Decimal): Cảm nhận độ khó toàn buổi
+- PerformedExercises (List<SessionExerciseLog>): Chi tiết từng bài. Lưu lại Số hiệp thực tế (ActualSets), Số rep thực tế (ActualReps), Số tạ thực tế (ActualWeightKg), và dấu FailedRep (nếu đẩy rớt tạ). Dữ liệu này dùng để AI/Rule Engine rút kinh nghiệm cho chu kỳ sau.
