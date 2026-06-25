@@ -1,0 +1,30 @@
+#sam cli config
+#file nay luu config mac dinh cho lenh sam deploy
+#moi lan chay sam deploy, no doc file nay thay vi hoi lai tung tham so
+
+
+version = 0.1
+
+[default.deploy.parameters]
+
+#ten cloudformation stack - nhom tat ca tai nguyen lai voi nhau
+stack_name = "periodiq-dev"
+
+#region deploy
+region = "us-east-1"
+
+#Cho phep tao IAM Role tu dong (lambda can IAM Role de chay)
+capabilities = "CAPABILITY_IAM CAPABILITY_AUTO_EXPAND"
+
+#xac nhan truoc khi thay doi tai nguyen (an toan, tranh xoa nham)
+confirm_changeset = true
+
+#S3 Bucket de upload lambda code (sam tu tao neu chua co)
+resolve_s3 = true
+
+# Tham so cho template
+parameter_overrides = "Environment=\"dev\" AlertEmail=\"syvan.claude@outlook.com\""
+
+[default.build.parameters]
+# Dung container Docker khi build (dam bao giong moi truong Lambda)
+use_container = false
