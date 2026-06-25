@@ -37,3 +37,7 @@ pnpm-debug.log*
 # =========================
 .DS_Store
 Thumbs.db
+/PeriodIQ.Backend/docs
+.claude
+.aws-sam/
+.idea

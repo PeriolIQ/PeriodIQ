@@ -1,0 +1,469 @@
+#dinh nghia toan bo tai nguyen aws cho project
+AWSTemplateFormatVersion: "2010-09-09"
+
+Transform: AWS::Serverless-2016-10-31
+
+Description: PeriodIQ - SAM template dinh nghia lambda API, API Gateway, DynamoDB, SQS, S3, CLOUDWATCH
+
+#parameters - cac bien co the thay doi khi deploy
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - production
+    Description: "Moi truong deploy (dev/staging/production)"
+  #email nhan thong bao khi co alarm
+  AlertEmail:
+    Type: String
+    Default: "syvan.claude@outlook.com"
+    Description: "Email nhan thong bao CloudWatch Alarm (SNS)"
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 512
+    Runtime: provided.al2023
+    Architectures:
+      - x86_64
+    Environment:
+      Variables:
+        ASPNETCORE_ENVIRONMENT: !Ref Environment
+
+#RESOURCES - dinh nghia tung tai nguyen aws
+Resources:
+  #1 lambda function - backend api
+  PeriodIQApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "periodIq-api-${Environment}"
+      Handler: PeriodIQ.Api
+      CodeUri: ./PeriodIQ.Backend/PeriodIQ.Api/
+      Description: "PeriodIQ Backend API - Workout Periodization Platform"
+      Environment:
+        Variables:
+          SQS_QUEUE_URL: !Ref WorkoutProcessingQueue
+      Events:
+        ApiEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref PeriodIQHttpApi
+            Path: /{proxy+}
+            Method: ANY
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ExerciseTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WorkoutTemplateTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref RuleDefinitionTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UserProfileTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PersonalRecordHistoryTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref DailyCnsStatusTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WorkoutPlanTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref WorkoutSessionLogTable
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt WorkoutProcessingQueue.QueueName
+        - CloudWatchLogsFullAccess
+      Tags:
+        Project: PeriodIQ
+        Environment: !Ref Environment
+    Metadata:
+      BuildMethod: dotnet8
+
+  #2. api gateway - http api v2
+  PeriodIQHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref Environment
+      Description: "PeriodIQ API Gateway"
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+          - X-Amz-Date
+          - X-Api-Key
+        MaxAge: 300
+
+  # 3 DynamoDB - 8 bang du lieu
+
+  #bang 1: Exercise (danh sach bai tap)
+  ExerciseTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "Exercise-${Environment}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: Id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: Id
+          KeyType: HASH
+
+  #bang 2: WorkoutTemplate (Mau lich tap)
+  WorkoutTemplateTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "WorkoutTemplate-${Environment}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: Id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: Id
+          KeyType: HASH
+
+  #bang 3: RuleDefinition (Quy tac Rule Engine)
+  RuleDefinitionTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "RuleDefinition-${Environment}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: Id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: Id
+          KeyType: HASH
+
+  #bang 4: UserProfile (ho so nguoi dung)
+  UserProfileTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "UserProfile-${Environment}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: Id
+          AttributeType: S
+        - AttributeName: Email
+          AttributeType: S
+      KeySchema:
+        - AttributeName: Id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: Email-index
+          KeySchema:
+            - AttributeName: Email
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  #bang 5: PersonalRecordHistory (lich su PR)
+  PersonalRecordHistoryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "PersonalRecordHistory-${Environment}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: Id
+          AttributeType: S
+        - AttributeName: UserId
+          AttributeType: S
+        - AttributeName: ExerciseId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: Id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: UserId-ExerciseId-index
+          KeySchema:
+            - AttributeName: UserId
+              KeyType: HASH
+            - AttributeName: ExerciseId
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  #bang 6: DailyCnsStatus (Trang thai CNS hang ngay)
+  DailyCnsStatusTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "DailyCnsStatus-${Environment}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: Id
+          AttributeType: S
+        - AttributeName: UserId
+          AttributeType: S
+        - AttributeName: DateLog
+          AttributeType: S
+      KeySchema:
+        - AttributeName: Id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: UserId-DateLog-index
+          KeySchema:
+            - AttributeName: UserId
+              KeyType: HASH
+            - AttributeName: DateLog
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  #bang 7: WorkoutPlan (lich tap ca nhan hoa)
+  WorkoutPlanTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "WorkoutPlan-${Environment}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: Id
+          AttributeType: S
+        - AttributeName: UserId
+          AttributeType: S
+        - AttributeName: StartDate
+          AttributeType: S
+      KeySchema:
+        - AttributeName: Id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: UserId-StartDate-index
+          KeySchema:
+            - AttributeName: UserId
+              KeyType: HASH
+            - AttributeName: StartDate
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  #bang 8: WorkoutSessionLog (nhat ky buoi tap)
+  WorkoutSessionLogTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "WorkoutSessionLog-${Environment}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: Id
+          AttributeType: S
+        - AttributeName: UserId
+          AttributeType: S
+        - AttributeName: CompletedAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: Id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: UserId-CompletedAt-index
+          KeySchema:
+            - AttributeName: UserId
+              KeyType: HASH
+            - AttributeName: CompletedAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  # SQS queue - hang doi xu ly workout
+  WorkoutProcessingQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "periodiq-workout-processing-${Environment}"
+      VisibilityTimeout: 60
+      MessageRetentionPeriod: 86400
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt WorkoutProcessingDLQ.Arn
+        maxReceiveCount: 3
+
+  # Dead Letter Queue - chua message bi loi (de debug)
+  WorkoutProcessingDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "periodiq-workout-processing-dlq-${Environment}"
+      MessageRetentionPeriod: 1209600
+
+  # S3 Bucket hosting frontend
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "periodiq-frontend-${Environment}-${AWS::AccountId}"
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+
+  # Policy cho phep public doc tat ca file trong S3 bucket
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: "*"
+            Action: "s3:GetObject"
+            Resource: !Sub "arn:aws:s3:::${FrontendBucket}/*"
+
+  # SNS Topic - kenh gui thong bao (CloudWatch Alarm -> Email)
+  AlertSnsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub "periodiq-alerts-${Environment}"
+      DisplayName: "PeriodIQ Alert"
+
+  # Subscription: gui email khi co alarm
+  AlertEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref AlertSnsTopic
+      Protocol: email
+      Endpoint: !Ref AlertEmail
+
+  # CLOUDWATCH - Log Group, Metric Filter, Alarms
+
+  # Log Group: noi lambda ghi logs
+  ApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/periodiq-api-${Environment}"
+      RetentionInDays: 30
+
+  # Metric Filter: dem so loi 5xx tu log
+  ApiErrorMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref ApiLogGroup
+      FilterPattern: "\"StatusCode: 5\""
+      MetricTransformations:
+        - MetricName: "Api5xxErrorCount"
+          MetricNamespace: !Sub "PeriodIQ/${Environment}"
+          MetricValue: "1"
+          DefaultValue: 0
+
+  # Metric Filter: dem so loi 4xx (client error)
+  ApiClientErrorMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref ApiLogGroup
+      FilterPattern: "\"StatusCode: 4\""
+      MetricTransformations:
+        - MetricName: "Api4xxErrorCount"
+          MetricNamespace: !Sub "PeriodIQ/${Environment}"
+          MetricValue: "1"
+          DefaultValue: 0
+
+  # Alarm: bao dong khi qua nhieu loi 5xx
+  Api5xxAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "periodiq-api-5xx-errors-${Environment}"
+      AlarmDescription: "CANH BAO: API tra ve qua nhieu loi 5xx"
+      Namespace: !Sub "PeriodIQ/${Environment}"
+      MetricName: "Api5xxErrorCount"
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlertSnsTopic
+
+  # Alarm: lambda bi timeout hoac chay qua lau
+  ApiLatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "periodiq-api-high-latency-${Environment}"
+      AlarmDescription: "CANH BAO: API response time qua cao"
+      Namespace: "AWS/Lambda"
+      MetricName: "Duration"
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref PeriodIQApiFunction
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 10000
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlertSnsTopic
+
+  # Alarm: Lambda bi loi
+  ApiInvocationErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "periodiq-api-invocation-errors-${Environment}"
+      AlarmDescription: "CANH BAO: Lambda bi loi khi thuc thi (crash, out of memory, timeout)"
+      Namespace: "AWS/Lambda"
+      MetricName: "Errors"
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref PeriodIQApiFunction
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 3
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlertSnsTopic
+
+  # Alarm: DLQ co message (message bi fail)
+  DlqMessageAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "periodiq-dlq-message-${Environment}"
+      AlarmDescription: "CANH BAO: Co message bi loi trong Dead Letter Queue (can kiem tra)"
+      Namespace: "AWS/SQS"
+      MetricName: "ApproximateNumberOfMessagesVisible"
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt WorkoutProcessingDLQ.QueueName
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlertSnsTopic
+
+#OUTPUT - Cac gia tri xuat ra sau khi deploy (URL, ARN, Ten resource)
+Outputs:
+  ApiUrl:
+    Description: "API Gateway endpoint URL"
+    Value: !Sub "https://${PeriodIQHttpApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
+
+  FrontendUrl:
+    Description: "Frontend S3 Website URL"
+    Value: !GetAtt FrontendBucket.WebsiteURL
+
+  FrontendBucketName:
+    Description: "S3 Bucket name cho frontend"
+    Value: !Ref FrontendBucket
+
+  SqsQueueUrl:
+    Description: "SQS Queue URL cho workout processing"
+    Value: !Ref WorkoutProcessingQueue
+
+  SnsTopicArn:
+    Description: "SNS Topic ARN cho alerts"
+    Value: !Ref AlertSnsTopic
+
+  LambdaFunctionName:
+    Description: "Lambda function name"
+    Value: !Ref PeriodIQApiFunction
+
+  LambdaFunctionArn:
+    Description: "Lambda function ARN"
+    Value: !GetAtt PeriodIQApiFunction.Arn
