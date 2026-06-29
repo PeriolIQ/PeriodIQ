@@ -17,6 +17,7 @@ PeriodIQ hoạt động như một "huấn luyện viên tự động": người
 - [Tech Stack](#tech-stack)
 - [Hướng dẫn cài đặt](#hướng-dẫn-cài-đặt)
 - [CI/CD Pipeline](#cicd-pipeline)
+- [Phân công theo thành viên](#phân-công-theo-thành-viên)
 - [Tài liệu chi tiết](#tài-liệu-chi-tiết)
 
 ---
@@ -474,6 +475,438 @@ Developer push code
 - **Backend**: `buildspec-backend.yml` — restore, build, test (với test report + CodeBuild report), đóng gói artifact, deploy qua CloudFormation/SAM.
 - **Frontend**: `buildspec-frontend.yml` — npm install, security scan, build, sync lên S3.
 - Zero-downtime deployment cho cả backend và frontend.
+
+---
+
+## Phân công theo thành viên
+
+> Mỗi người phụ trách **3-4 dịch vụ AWS** + nhiệm vụ **Backend (BE)** và **Frontend (FE)** tương ứng.
+
+---
+
+### Người 1 — Auth & User Profile (3 dịch vụ)
+
+| Dịch vụ AWS | Vai trò |
+|-------------|---------|
+| **Amazon Cognito** | Setup User Pool, cấu hình JWT cho User + Admin |
+| **AWS WAF** | Cấu hình rule chặn bot, SQL Injection, XSS |
+| **Amazon CloudFront** | Setup CDN, phân luồng static → S3 và /api → API Gateway |
+
+#### Backend
+
+- **Cognito User Pool setup**:
+  - Tạo User Pool với các attribute: email (required), name
+  - Cấu hình App Client (cho frontend SPA — no secret)
+  - Setup hosted UI hoặc custom auth flow
+  - Cấu hình password policy, MFA (tùy chọn)
+  - Tạo User Pool Groups: `Users`, `Admins`
+
+- **Cognito integration trong .NET**:
+  - Cấu hình JWT Bearer Authentication trong `Program.cs`
+  - Validate JWT token từ Cognito (issuer, audience)
+  - Middleware extract `CognitoUserId` từ JWT claims → map với `UserProfile.Id`
+  - Phân quyền `[Authorize]` trên Controller, `[Authorize(Roles = "Admins")]` cho admin endpoints
+
+- **WAF rules**:
+  - Tạo Web ACL gắn vào CloudFront distribution
+  - Bật AWS Managed Rules: `AWSManagedRulesCommonRuleSet` (SQL injection, XSS)
+  - Bật `AWSManagedRulesBotControlRuleSet` (chặn bot)
+  - Rate limiting rule (ví dụ: 2000 requests/5 phút per IP)
+
+- **CloudFront distribution**:
+  - Origin 1: S3 bucket (frontend) — default behavior `/*`
+  - Origin 2: API Gateway — behavior `/api/*` (forward headers, cookies)
+  - Cấu hình OAC (Origin Access Control) cho S3
+  - Gắn WAF Web ACL vào distribution
+  - Setup custom domain + SSL certificate (ACM) nếu có
+
+- **DynamoDB table `UserProfile`**:
+  - Tạo bảng theo schema (xem [DynamoDB guide](PeriodIQ.Backend/docs/DynamoDB_Schema_Setup_Guide.md#64-bảng-userprofile--hồ-sơ-người-dùng))
+  - `UserProfilesController`: CRUD endpoints
+  - `UserProfileService`: Business logic
+    - `POST /api/userprofiles` — Tạo profile sau khi đăng ký Cognito (Id = Cognito User ID)
+    - `GET /api/userprofiles/{id}` — Lấy profile (chỉ được xem profile của chính mình)
+    - `PUT /api/userprofiles/{id}` — Cập nhật chỉ số (BodyWeightKg, FitnessLevel, PrimaryGoal, AvailableDaysPerWeek)
+  - Đảm bảo `Id` trong UserProfile = `sub` claim từ Cognito JWT
+
+#### Frontend
+
+- **Trang Login** (`/login`):
+  - Form đăng nhập: email + password
+  - Gọi Cognito `InitiateAuth` (hoặc dùng Amplify/aws-jwt-verify)
+  - Lưu JWT token (access + refresh) vào memory/httpOnly cookie
+  - Redirect về dashboard sau khi login thành công
+  - Hiển thị lỗi: sai mật khẩu, tài khoản chưa xác minh
+
+- **Trang Register** (`/register`):
+  - Form đăng ký: email, password, họ tên
+  - Gọi Cognito `SignUp`
+  - Trang xác minh OTP (Cognito gửi email verification code)
+  - Sau khi verify → tự động gọi `POST /api/userprofiles` tạo profile
+
+- **Trang Forgot Password** (`/forgot-password`):
+  - Nhập email → Cognito gửi reset code
+  - Nhập code + mật khẩu mới → Cognito `ConfirmForgotPassword`
+
+- **Trang Profile** (`/profile`):
+  - Hiển thị thông tin cá nhân từ `GET /api/userprofiles/{id}`
+  - Form chỉnh sửa: cân nặng (kg), trình độ (dropdown: Beginner/Intermediate/Advanced), mục tiêu (Strength/Hypertrophy), số ngày tập/tuần
+  - Gọi `PUT /api/userprofiles/{id}` khi save
+
+- **Quản lý JWT token**:
+  - Tạo Axios interceptor (trong `axiosConfig.js`): tự động gắn `Authorization: Bearer <token>` vào mọi request
+  - Auto refresh token khi access token hết hạn
+  - Redirect về `/login` khi refresh token cũng hết hạn (401)
+  - Protected route HOC/component: check token trước khi render trang
+
+---
+
+### Người 2 — Rule Engine & Sinh giáo án (3 dịch vụ)
+
+| Dịch vụ AWS | Vai trò |
+|-------------|---------|
+| **Lambda · API Handler** | Điểm vào chính, nhận form data từ User |
+| **Lambda · Rule Engine** | Chạy 3 bộ luật: Volume → Conflict → Progression |
+| **Amazon S3** | Hosting file tĩnh React + Vite (SPA) |
+
+#### Backend
+
+- **`RuleEngineService.cs`** — Logic core của hệ thống:
+  - **Input**: `UserId`, `TemplateId` (hoặc auto-select dựa trên goal + fitness level)
+  - **Output**: `WorkoutPlan` hoàn chỉnh (4 tuần, với kg cụ thể)
+  - **Bước 1 — Load data**:
+    - Đọc `UserProfile` (FitnessLevel, BodyWeightKg, PrimaryGoal, AvailableDaysPerWeek)
+    - Đọc `WorkoutTemplate` phù hợp
+    - Đọc `PersonalRecordHistory` của user (để tính %1RM)
+    - Đọc `DailyCnsStatus` 7 ngày gần nhất (để đánh giá readiness)
+    - Đọc tất cả `RuleDefinition` đang active (`IsActive = true`), sort theo `PriorityOrder`
+  - **Bước 2 — Volume Filter**:
+    - Áp dụng `VolumeRule`: giới hạn tổng set/tuần cho mỗi nhóm cơ (ví dụ: max 20 set/tuần cho Chest)
+    - Nếu template vượt quá → cắt bớt set ở bài tập có CNS Stress Score thấp nhất
+  - **Bước 3 — Conflict Resolution**:
+    - Áp dụng `CnsConflictRule`: không xếp 2 bài tập có `CnsStressScore >= 8` trong cùng 1 ngày
+    - Nếu conflict → swap bài tập sang ngày khác hoặc thay bằng bài tập alternative (cùng PrimaryMuscleGroup, CNS thấp hơn)
+  - **Bước 4 — Progression Builder**:
+    - Tuần 1: Tính `TargetWeightKg` = PR × `TargetIntensityPercentage` (ví dụ: PR 100kg × 75% = 75kg)
+    - Tuần 2: +2.5% weight hoặc +1 rep (tùy `ProgressionRule`)
+    - Tuần 3: +5% weight hoặc +1 set
+    - Tuần 4: **Deload** — giảm volume 40% (theo `DeloadRule`)
+    - Nếu user chưa có PR → dùng estimate dựa trên BodyWeightKg + FitnessLevel
+  - **Bước 5 — Save**:
+    - Tạo `WorkoutPlan` object với nested `Weeks → Days → Exercises` (kèm kg cụ thể)
+    - Ghi vào DynamoDB bảng `WorkoutPlan`
+    - Set `Status = "Active"`, đánh dấu plan cũ thành `"Completed"` hoặc `"Abandoned"`
+
+- **`WorkoutPlansController.cs`**:
+  - `POST /api/workoutplans/generate` — Gọi RuleEngineService để sinh plan mới
+  - `GET /api/workoutplans?userId={id}` — Lấy danh sách plan (sort theo StartDate desc)
+  - `GET /api/workoutplans/{id}` — Lấy chi tiết 1 plan (kèm toàn bộ Weeks/Days/Exercises)
+  - `PATCH /api/workoutplans/{id}/status` — Cập nhật status (Active/Completed/Abandoned)
+
+- **`ExercisesController.cs`**:
+  - `GET /api/exercises` — Lấy danh sách bài tập (filter theo MuscleGroup, EquipmentType)
+  - `GET /api/exercises/{id}` — Chi tiết bài tập
+
+- **S3 bucket hosting**:
+  - Tạo S3 bucket cho frontend (block public access, dùng OAC qua CloudFront)
+  - Cấu hình static website hosting
+  - Upload build output (`npm run build` → thư mục `dist/`) lên S3
+
+#### Frontend
+
+- **Scaffold dự án React + Vite**:
+  - Cấu hình project structure: `pages/`, `components/`, `services/`, `hooks/`
+  - Setup React Router: routes cho login, register, profile, dashboard, plan...
+  - Setup TanStack React Query: `QueryClient`, `QueryClientProvider`
+  - Cấu hình Axios base URL (trỏ đến API Gateway hoặc localhost khi dev)
+
+- **Form nhập thông số tập** (`/generate`):
+  - Dropdown chọn mục tiêu: Strength / Hypertrophy
+  - Dropdown chọn trình độ: Beginner / Intermediate / Advanced
+  - Input số ngày tập/tuần (3-6)
+  - Dropdown/search chọn WorkoutTemplate (hoặc auto-suggest)
+  - Nút "Tạo giáo án" → gọi `POST /api/workoutplans/generate`
+  - Loading state trong khi Rule Engine xử lý
+
+- **Trang hiển thị giáo án 4 tuần** (`/plans/{id}`):
+  - **Tab/Accordion theo tuần**: Tuần 1, Tuần 2, Tuần 3, Tuần 4 (Deload)
+  - Mỗi tuần hiển thị **bảng theo ngày**:
+    - Cột: Ngày (Monday, Tuesday...) | Focus Area | Bài tập
+    - Mỗi bài tập hiển thị: Tên | Sets × Reps | Target Weight (kg) | Rest Time
+  - Highlight tuần deload (màu khác, badge "Deload Week")
+  - Nút "Bắt đầu tập" cho ngày hiện tại → navigate đến trang log buổi tập
+
+- **Trang danh sách plan** (`/plans`):
+  - Danh sách các plan đã tạo (Active, Completed, Abandoned)
+  - Badge status với màu khác nhau
+  - Sort theo ngày bắt đầu
+  - Click vào plan → xem chi tiết
+
+- **Deploy lên S3**:
+  - Script `npm run build` → upload `dist/` lên S3 bucket
+  - Invalidate CloudFront cache sau khi deploy
+
+---
+
+### Người 3 — Tiến trình & Async Notification (3 dịch vụ)
+
+| Dịch vụ AWS | Vai trò |
+|-------------|---------|
+| **Amazon SQS** | Hàng đợi tác vụ bất đồng bộ |
+| **Lambda · Worker** | Xử lý message từ SQS |
+| **Amazon SNS / SES** | Gửi email giáo án & workout reminder |
+
+#### Backend
+
+- **SQS queue setup**:
+  - Tạo SQS Standard Queue: `periodiq-notification-queue`
+  - Cấu hình Dead Letter Queue (DLQ) cho message thất bại (maxReceiveCount = 3)
+  - Cấu hình visibility timeout phù hợp (ví dụ: 30 giây)
+  - `SqsMessageQueueService.cs` đã có sẵn — cần implement:
+    - `SendMessageAsync(type, payload)` — đẩy message vào queue
+    - Message types: `SEND_PLAN_EMAIL`, `WORKOUT_REMINDER`, `PR_CONGRATULATION`
+
+- **Lambda Worker** (trigger từ SQS):
+  - Parse message body → switch theo type
+  - `SEND_PLAN_EMAIL`: Đọc WorkoutPlan từ DynamoDB, format thành email HTML, gửi qua SES
+  - `WORKOUT_REMINDER`: Gửi push notification/email nhắc lịch tập hôm nay
+  - `PR_CONGRATULATION`: Gửi email chúc mừng khi user lập PR mới
+  - Error handling: message lỗi → retry 3 lần → vào DLQ
+
+- **SNS / SES setup**:
+  - SES: Verify domain/email sender, tạo email template cho:
+    - Template "workout-plan": Bảng giáo án 4 tuần (HTML table)
+    - Template "workout-reminder": Nhắc bài tập hôm nay (tên bài, set/rep/kg)
+    - Template "pr-congrats": Chúc mừng PR mới (tên bài, kg cũ → kg mới)
+  - SNS: Topic cho alarm notification (optional, Người 5 có thể dùng)
+
+- **`WorkoutSessionLogsController.cs`** — Nhật ký buổi tập:
+  - `POST /api/workoutsessionlogs` — Ghi log buổi tập
+    - Validate: userId, workoutPlanId, weekNumber, day
+    - Lưu `PerformedExercises` (ExerciseId, ActualSets, ActualReps, ActualWeightKg, FailedRep)
+    - Tính `OverallSessionRpe` (trung bình RPE các bài hoặc user tự nhập)
+    - **Check PR**: So sánh `ActualWeightKg` với `PersonalRecordHistory` → nếu cao hơn:
+      - Tạo record mới trong `PersonalRecordHistory`
+      - Đẩy message `PR_CONGRATULATION` vào SQS
+  - `GET /api/workoutsessionlogs?userId={id}` — Lịch sử buổi tập (sort theo CompletedAt)
+  - `GET /api/workoutsessionlogs/{id}` — Chi tiết 1 buổi tập
+
+- **`ProgressionAnalyticsService.cs`** — Phân tích tiến trình:
+  - `GetProgressionData(userId, exerciseId, dateRange)` — Trả về data cho biểu đồ tăng tạ theo thời gian
+  - `GetVolumeByWeek(userId, planId)` — Tổng volume mỗi tuần (để so sánh planned vs actual)
+  - `GetStreakData(userId)` — Tính chuỗi ngày tập liên tiếp (streak)
+
+#### Frontend
+
+- **Dashboard chính** (`/dashboard`):
+  - **Card XP / Level**: Tính XP từ số buổi tập hoàn thành (ví dụ: 10 XP/buổi), hiển thị level
+  - **Streak counter**: Chuỗi ngày tập liên tiếp (icon lửa + số ngày)
+  - **Card "Hôm nay tập gì"**: Hiển thị bài tập hôm nay từ plan đang Active (nếu có)
+  - **Biểu đồ tăng tạ**: Line chart (dùng Recharts hoặc Chart.js) — trục X: thời gian, trục Y: kg — cho bài tập chính (Bench, Squat, Deadlift)
+
+- **Form log buổi tập** (`/log`):
+  - Auto-fill từ plan hôm nay: danh sách bài tập, target set/rep/kg
+  - User chỉnh sửa: actual set, actual rep, actual kg cho từng bài
+  - Checkbox "Failed Rep" cho từng bài
+  - Input RPE chung cả buổi (slider 1-10)
+  - Nút "Hoàn thành buổi tập" → `POST /api/workoutsessionlogs`
+  - Hiển thị popup chúc mừng nếu lập PR mới
+
+- **Trang lịch sử tập** (`/history`):
+  - Danh sách các buổi tập đã hoàn thành (card/list)
+  - Mỗi buổi hiển thị: ngày, focus area, tổng volume, RPE
+  - Click vào → xem chi tiết từng bài tập (actual vs planned)
+
+- **Trang cài đặt thông báo** (`/settings/notifications`):
+  - Toggle bật/tắt email reminder
+  - Chọn thời gian nhận reminder (ví dụ: 7:00 AM ngày tập)
+  - Toggle bật/tắt email chúc mừng PR
+
+---
+
+### Người 4 — Admin Panel & Data (3 dịch vụ)
+
+| Dịch vụ AWS | Vai trò |
+|-------------|---------|
+| **Lambda · Admin API** | Xử lý thao tác quản trị |
+| **Amazon DynamoDB** | Thiết kế toàn bộ schema, quản lý tables |
+| **API Gateway (HTTP)** | Cấu hình routes, gắn JWT Authorizer |
+
+#### Backend
+
+- **Lambda Admin API** — CRUD bộ luật, template, thống kê:
+
+  - **`RuleDefinitionsController.cs`**:
+    - `GET /api/ruledefinitions` — Danh sách tất cả rules (filter theo Category, IsActive)
+    - `GET /api/ruledefinitions/{id}` — Chi tiết 1 rule
+    - `POST /api/ruledefinitions` — Tạo rule mới
+      - Validate: Category phải là 1 trong (VolumeRule, CnsConflictRule, ProgressionRule, DeloadRule)
+      - `RuleParametersJson` phải là valid JSON
+      - `PriorityOrder` không được trùng với rule cùng Category
+    - `PUT /api/ruledefinitions/{id}` — Cập nhật rule (thay đổi tham số, priority)
+    - `PATCH /api/ruledefinitions/{id}/toggle` — Bật/tắt `IsActive`
+    - `DELETE /api/ruledefinitions/{id}` — Xóa rule
+
+  - **`WorkoutTemplatesController.cs`**:
+    - `GET /api/workouttemplates` — Danh sách templates (filter theo Goal, SuitableFitnessLevel)
+    - `GET /api/workouttemplates/{id}` — Chi tiết template (kèm Days → Exercises)
+    - `POST /api/workouttemplates` — Tạo template mới
+      - Validate nested structure: Days phải có DaySequence unique, mỗi Day phải có ít nhất 1 Exercise
+      - ExerciseId phải tồn tại trong bảng Exercise
+    - `PUT /api/workouttemplates/{id}` — Cập nhật template
+    - `DELETE /api/workouttemplates/{id}` — Xóa template
+
+  - **`ExercisesController.cs`** (Admin CRUD):
+    - `POST /api/exercises` — Thêm bài tập mới (Admin only)
+      - Validate: CnsStressScore 1-10, PrimaryMuscleGroup không rỗng
+    - `PUT /api/exercises/{id}` — Sửa bài tập
+    - `DELETE /api/exercises/{id}` — Xóa bài tập (check không có template nào đang reference)
+
+- **Thiết kế DynamoDB schema cho toàn bộ hệ thống**:
+  - Tạo đủ 8 bảng theo [DynamoDB_Schema_Setup_Guide.md](PeriodIQ.Backend/docs/DynamoDB_Schema_Setup_Guide.md)
+  - Setup GSI cho các bảng cần query phức tạp (UserProfile, PersonalRecordHistory, DailyCnsStatus, WorkoutPlan, WorkoutSessionLog)
+  - Implement `DynamoDbRepository.cs`:
+    - Generic CRUD operations (GetById, GetAll, Create, Update, Delete)
+    - Query by GSI (QueryByPartitionKey, QueryByCompositeKey)
+    - Batch operations nếu cần (BatchWriteItem cho seed data)
+  - Seed data mẫu: 10+ exercises, 2-3 templates, 4-5 rules
+
+- **API Gateway setup**:
+  - Tạo HTTP API trên API Gateway
+  - Cấu hình routes: `ANY /api/{proxy+}` → Lambda function
+  - Gắn JWT Authorizer (Cognito User Pool) lên tất cả routes `/api/*`
+  - Cấu hình CORS: allow origin từ CloudFront domain + localhost (dev)
+  - Stage: `$default` (auto-deploy)
+
+- **Thống kê cho Admin**:
+  - `GET /api/admin/stats` — Tổng số users, plans đã tạo, active plans, buổi tập hoàn thành
+  - `GET /api/admin/stats/popular-exercises` — Top 10 bài tập được dùng nhiều nhất
+  - `GET /api/admin/stats/user-activity` — Số user active theo tuần/tháng
+
+#### Frontend
+
+- **Trang Admin Dashboard** (`/admin`):
+  - Require role `Admins` (redirect nếu không phải admin)
+  - Cards thống kê: Tổng users | Active plans | Buổi tập hôm nay | Templates
+  - Bảng thống kê & báo cáo tổng quan
+
+- **Trang quản lý bộ luật** (`/admin/rules`):
+  - Bảng danh sách rules: Category | Name | Priority | Active (toggle switch)
+  - Nút "Thêm rule mới" → Modal/form:
+    - Dropdown Category (VolumeRule, CnsConflictRule, ProgressionRule, DeloadRule)
+    - Input: RuleName, Description
+    - JSON editor cho RuleParametersJson (có validate)
+    - Input PriorityOrder (number)
+  - Click row → Edit form (pre-fill data)
+  - Nút Delete (confirm dialog)
+
+- **Trang quản lý template giáo án** (`/admin/templates`):
+  - Bảng danh sách: Template Name | Goal | Fitness Level | Số ngày/tuần
+  - Nút "Tạo template" → Form phức tạp:
+    - Input tên, chọn goal, chọn fitness level
+    - **Dynamic form cho Days**: Nút "Thêm ngày" → mỗi ngày có:
+      - DaySequence (auto-increment)
+      - FocusArea (text input)
+      - **Danh sách bài tập**: Search/dropdown chọn Exercise + input TargetSets, TargetRepRange, TargetIntensityPercentage
+  - Preview template trước khi save
+
+- **Trang quản lý bài tập** (`/admin/exercises`):
+  - Bảng: Name | Muscle Group | Equipment | CNS Score | PR Eligible
+  - Filter theo MuscleGroup, EquipmentType
+  - CRUD modal/form
+  - Import bulk exercises (CSV upload — optional)
+
+- **Shared components & layout chung**:
+  - Sidebar navigation (cho cả user và admin)
+  - Header: user info, logout button
+  - Layout wrapper: `UserLayout`, `AdminLayout`
+  - Reusable components: DataTable, Modal, ConfirmDialog, Badge, StatusTag
+
+---
+
+### Người 5 — CI/CD & Monitoring (4 dịch vụ)
+
+| Dịch vụ AWS | Vai trò |
+|-------------|---------|
+| **AWS CodePipeline** | Orchestrate pipeline triển khai |
+| **AWS CodeBuild** | Build & test mã nguồn |
+| **CloudFormation / SAM** | Infrastructure as Code, đóng gói & deploy |
+| **Amazon CloudWatch** | Logs + Metrics + Alarm |
+
+#### Backend
+
+- **SAM template** (`template.yaml`):
+  - Định nghĩa toàn bộ infrastructure as code:
+    - `AWS::Serverless::Function` — Lambda function (runtime: dotnet9, handler, memory, timeout)
+    - `AWS::Serverless::HttpApi` — API Gateway HTTP API
+    - `AWS::DynamoDB::Table` — 8 bảng DynamoDB (hoặc reference nếu tạo riêng)
+    - `AWS::S3::Bucket` — Frontend hosting bucket
+    - `AWS::SQS::Queue` — Notification queue + DLQ
+    - `AWS::SNS::Topic` — Alarm notification topic
+  - Environment variables cho Lambda: DynamoDB table names, SQS queue URL, Cognito config
+  - IAM Role/Policy: Lambda execution role với quyền DynamoDB, SQS, SES, CloudWatch
+
+- **CodePipeline + CodeBuild** (`buildspec-backend.yml`):
+  - **Source stage**: GitHub webhook (trigger on push to `main`)
+  - **Build stage** (CodeBuild):
+    - `install`: Setup .NET 9 SDK
+    - `pre_build`: `dotnet restore`
+    - `build`: `dotnet build --configuration Release`
+    - `post_build`:
+      - `dotnet test` — chạy unit tests, xuất report (JUnit format cho CodeBuild report)
+      - `sam package` — đóng gói artifact
+  - **Deploy stage**: `sam deploy` hoặc CloudFormation changeset
+  - Artifact versioning: tag build với commit hash
+
+- **CodeBuild cho Frontend** (`buildspec-frontend.yml`):
+  - `install`: Setup Node.js
+  - `pre_build`: `npm ci`
+  - `build`:
+    - Security scan: `npm audit` hoặc tool tương đương
+    - `npm run build`
+  - `post_build`: `aws s3 sync dist/ s3://<bucket>` + CloudFront invalidation
+
+- **CloudWatch setup**:
+  - **Log groups**: Tạo log group cho mỗi Lambda function, retention 14 ngày
+  - **Metric filters**: Parse log để tạo custom metrics:
+    - `RuleEngineExecutionTime` — thời gian Rule Engine chạy
+    - `PlanGenerationCount` — số plan được tạo
+    - `ErrorCount` — số lỗi 5xx
+  - **Alarms**:
+    - Lambda Error Rate > 5% trong 5 phút → SNS alert
+    - Lambda Duration > 10 giây (p95) → SNS alert
+    - DynamoDB ThrottledRequests > 0 → SNS alert
+    - Lambda ConcurrentExecutions > 80% limit → SNS alert
+  - **Dashboard**: Tạo CloudWatch dashboard tổng hợp:
+    - Widget: Lambda invocations, duration, errors (theo function)
+    - Widget: DynamoDB read/write capacity, throttled requests
+    - Widget: API Gateway request count, latency, 4xx/5xx
+
+- **`HealthController.cs`** — Health check endpoint:
+  - `GET /api/health` — Kiểm tra:
+    - API status: OK
+    - DynamoDB connectivity: ping 1 bảng
+    - Timestamp, version (từ assembly)
+  - Dùng cho: ALB health check, uptime monitoring, pipeline smoke test
+
+#### Frontend
+
+- **Trang Monitoring Dashboard** (`/admin/monitoring`):
+  - **Health status card**: Gọi `GET /api/health` hiển thị status (xanh/đỏ), response time, last checked
+  - **Uptime indicator**: Hiển thị uptime % (tính từ health check history)
+  - **System info**: API version, Lambda memory, region
+
+- **Trang Deploy Log** (`/admin/deploys`):
+  - Gọi AWS SDK / API để lấy pipeline execution history
+  - Bảng: Commit | Status (Succeeded/Failed/InProgress) | Duration | Timestamp
+  - Click vào → xem chi tiết build log (từ CodeBuild)
+  - Badge màu theo status: xanh (success), đỏ (failed), vàng (in progress)
+
+- **Shared components & layout chung cho cả nhóm**:
+  - Base layout, sidebar, header — phối hợp với Người 4
+  - Theme setup (Tailwind + Mantine): color palette, typography, spacing
+  - Loading states, error boundaries, toast notifications
+  - Responsive design: mobile-friendly cho trang user (người tập hay dùng điện thoại)
 
 ---
 
