@@ -19,7 +19,9 @@ public class HealthController : ControllerBase
             version = typeof(HealthController).Assembly
             .GetName().Version?.ToString() ?? "1.0",
             environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
-                ?? "Unknown"
+                ?? "Unknown",
+            commit = Environment.GetEnvironmentVariable("GIT_COMMIT") ?? "local",
+            buildNumber = Environment.GetEnvironmentVariable("BUILD_NUMBER") ?? "0"
         });
     }
 }

@@ -26,25 +26,28 @@ pre_build:
         - echo "Restore NuGet package..."
         - dotnet restore PeriodIQ.Backend/PeriodIQ.sln
         - echo "Restore thanh cong!"
+        - dotnet list PeriodIQ.Backend/PeriodIQ.sln package --vulnerable --include-transitive
 # BUILD: Compite + Test + Publish
 build:
     commands:
         - echo "BUILD PHASE"
         #buoc 1 build solution (kiem tra compile errors)
         - echo "Build solution..."
-        - dotnet build PeriodIQ.Backend/PeriodIQ.sln --configuration Realease --no-restore
+        - SHORT_SHA=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c1-7)
+        - echo "Version: build-${CODE_BUILD_NUMBER}-${SHORT_SHA}"
+        - dotnet build PeriodIQ.Backend/PeriodIQ.sln --configuration Release --no-restore
         # buoc 2 chay unit test
         # --no-build khong build lai
         # --logger trx: xuat ket qua test dang file .trx (CodeBuild hieu duoc)
         # neu chua co test project, lenh nay van pass
         - echo "Chay unit tests..."
-        - dotnet test PeriodIQ.Backend/PeriodIQ.sln --configuration Realease --no-build --logger trx --results-directory ./test-result || true
+        - dotnet test PeriodIQ.Backend/PeriodIQ.sln --configuration Release --no-build --logger trx --results-directiory ./test-results --collect "XPlat Code Coverage"
         #buoc 3 publish (dong goi app thanh folder san sang deploy)
-        # --self-containerd true: dong kem .NET 9 runtime vao package
+        # --self-contained true: dong kem .NET 9 runtime vao package
         # vi Lambda dung custom runtime, khong co san .net9
         # -r linux-x86_64: target os
         - echo "Publish API project..."
-        - dotnet publish PeriodIQ.Backend/PeriodIQ.Api.csproj --configuration Realease --output ./publish --self-containerd true --runtime linux-x64
+        - dotnet publish PeriodIQ.Backend/PeriodIQ.Api.csproj --configuration Release --output ./publish --self-contained true --runtime linux-x64
 
         - echo "Build THANH CONG!"
 
@@ -67,3 +70,10 @@ artifacts:
 cache:
     paths:
         - /root/.nuget/packages/**/*
+
+reports:
+    periodiq-test-report:
+        files:
+            - "**/*.trx"
+        base-directory: test-result
+        file-format: VisualStudioTrx

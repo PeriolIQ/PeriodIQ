@@ -32,6 +32,7 @@ build:
         - echo "Build THANH CONG!"
         - echo "kiem tra output..."
         - ls -la dist/
+        - npm audit --audit-level=high
 post_build:
     commands:
         - echo "=== POST_BUILD PHASE ==="
