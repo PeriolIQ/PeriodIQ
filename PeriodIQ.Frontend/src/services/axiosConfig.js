@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import axios from 'axios';
 import { CognitoUserPool } from 'amazon-cognito-identity-js';
 
@@ -48,3 +49,31 @@ api.interceptors.response.use(
 
 export default api;
 
+=======
+import axios from 'axios';
+
+// Kết nối đến PeriodIQ Backend đang chạy ở cổng 5115
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Thêm interceptors ở đây sau nếu cần gắn JWT Token
+api.interceptors.request.use(
+  (config) => {
+    // const token = localStorage.getItem('token');
+    // if (token) {
+    //   config.headers.Authorization = `Bearer ${token}`;
+    // }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+export default api;
+>>>>>>> 252928c (update)

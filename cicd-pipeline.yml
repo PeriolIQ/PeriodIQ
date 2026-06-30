@@ -210,3 +210,55 @@ Pipeline:
               OutputArtifactFormat: CODE_ZIP
             OutputArtifacts:
               - Name: SourceCode
+
+      # STAGE 2: Build Backend
+      - Name: BuildBackend
+        Actions:
+          - Name: BuildDotNet
+            ActionTypeId:
+              Category: Build
+              Owner: AWS
+              Provider: CodeBuild
+              Version: "1"
+            Configuration:
+              ProfijectName: !Ref BackendBuildProject
+            InputArtifacts:
+              - Name: SourceCode
+            OutputArtifacts:
+              - Name: BackendBuild
+        # STAGE 3: Build Frontend
+      - Name: BuildFrontend
+        Actions:
+          - Name: BuildReact
+            ActionTypeId:
+              Category: Build
+              Owner: AWS
+              Provider: CodeBuild
+              Version: "1"
+            Configuration:
+              ProjectName: !Ref FrontendBuildProject
+            InputArtifacts:
+              - Name: SourceCode
+            OutputArtifacts:
+              - Name: FrontendBuild
+        # STAGE 4: Deploy (SAM)
+      - Name: Deploy
+        Actions:
+          - Name: SamDeploy
+            ActionTypeId:
+              Category: Build
+              Owner: AWS
+              Provider: CodeBuild
+              Version: "1"
+            Configuration:
+              ProjectName: !Ref SamDeployProject
+            InputArtifacts:
+              - Name: SourceCode
+Outputs:
+  PipelineName:
+    Value: !Ref Pipeline
+    Description: "PeriodIQ CodePipeline"
+
+  PipelineUrl:
+    Value: !Sub "https://console.aws.amazon.com/codepipeline/home?region={AWS::Region}#/view/${Pipeline}"
+    Description: "URL xem pipeline tren AWS Console"
