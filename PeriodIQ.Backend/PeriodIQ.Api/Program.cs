@@ -1,9 +1,12 @@
-using Amazon;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DataModel;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Amazon;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using Serilog;
 using Serilog.Events;
@@ -43,20 +46,33 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddCors();
 
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(options =>
-{
-    options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
-    {
-        Title = "PeriodIQ API",
-        Version = "v1"
-    });
-});
+// ─── JWT Authentication via AWS Cognito ───────────────────────────────────
+var cognitoAuthority = builder.Configuration["Cognito:Authority"]!;
+var cognitoAudience  = builder.Configuration["Cognito:Audience"]!;
 
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.Authority = cognitoAuthority;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            ValidateIssuer           = true,
+            ValidIssuer              = cognitoAuthority,
+            // Cognito access token không chứa aud — tắt để dùng được cả access token & id token
+            ValidateAudience         = false,
+            ValidateLifetime         = true,
+        };
+    });
+
+builder.Services.AddAuthorization();
+
+// ─── DynamoDB ─────────────────────────────────────────────────────────────
 var awsRegion = builder.Configuration["AWS:Region"] ?? "ap-southeast-1";
 var dynamoDbClient = new AmazonDynamoDBClient(new AmazonDynamoDBConfig
 {
-    RegionEndpoint = RegionEndpoint.GetBySystemName(awsRegion)
+    RegionEndpoint = Amazon.RegionEndpoint.GetBySystemName(awsRegion)
 });
 builder.Services.AddSingleton<IAmazonDynamoDB>(dynamoDbClient);
 builder.Services.AddSingleton<IDynamoDBContext>(
@@ -72,6 +88,8 @@ builder.Services.AddScoped<IDailyCnsStatusRepository, DailyCnsStatusRepository>(
 builder.Services.AddScoped<IWorkoutPlanRepository, WorkoutPlanRepository>();
 builder.Services.AddScoped<IWorkoutSessionLogRepository, WorkoutSessionLogRepository>();
 
+// ─── Services ─────────────────────────────────────────────────────────────
+
 builder.Services.AddScoped<IMessageQueueService, SqsMessageQueueService>();
 
 builder.Services.AddScoped<RuleEngineService>();
@@ -85,28 +103,66 @@ builder.Services.AddScoped<DailyCnsStatusService>();
 builder.Services.AddScoped<RuleDefinitionService>();
 builder.Services.AddScoped<WorkoutSessionLogService>();
 
+// ─── Swagger / Scalar ─────────────────────────────────────────────────────
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    {
+        Title   = "PeriodIQ API",
+        Version = "v1"
+    });
+
+    // Thêm Bearer JWT vào Swagger UI
+    options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        Name         = "Authorization",
+        Type         = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+        Scheme       = "Bearer",
+        BearerFormat = "JWT",
+        In           = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Description  = "Nhập JWT token từ Cognito. VD: Bearer eyJhb..."
+    });
+    options.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        {
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            {
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                {
+                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Id   = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
+
 builder.Services.AddAWSLambdaHosting(LambdaEventSource.HttpApi);
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment() || true) 
+if (app.Environment.IsDevelopment() || true)
 {
     app.UseSwagger();
-    app.MapScalarApiReference(options => 
+    app.MapScalarApiReference("/scalar", options =>
     {
         options
             .WithTitle("PeriodIQ API")
             .WithTheme(ScalarTheme.Purple)
             .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient)
             .WithOpenApiRoutePattern("/swagger/v1/swagger.json");
-            
-        options.EndpointPathPrefix = "/scalar";
     });
 }
 
 app.UseHttpsRedirection();
 app.UseCors(policy => policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+
+// ⚠️ UseAuthentication phải đứng TRƯỚC UseAuthorization
+app.UseAuthentication();
 app.UseAuthorization();
+
 app.MapControllers();
 
 try
@@ -123,3 +179,5 @@ finally
     Log.Information("👋 Shutting down PeriodIQ API...");
     Log.CloseAndFlush();
 }
+
+
