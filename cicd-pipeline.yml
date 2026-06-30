@@ -1,17 +1,14 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: "PeriodIQ CI/CD Pipeline - CodePipeline + CodeBuild"
 Parameters:
-  #ten github repo
   GitHubRepo:
     Type: String
     Default: "Elihoang/PeriodIQ"
     Description: "Github repository owner"
-  # Brand trigger pipeline
   GitHubBranch:
     Type: String
     Default: "main"
     Description: "Branch trigger pipeline"
-  #GitHub connection ARN
   GitHubConnectionArn:
     Type: String
     Description: "ARN cua CodeStar Connection toi Github"
@@ -20,162 +17,158 @@ Parameters:
     Default: "dev"
 
 Resources:
-  #S3 Bucket chua artifact giua cac stage cua pipeline
+  # S3 Bucket chua artifact giua cac stage cua pipeline
   PipelineArtifactBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "periodiq-pipe-line-artifacts-${AWS::AccountId}"
+      BucketName: !Sub "periodiq-pipeline-artifacts-${AWS::AccountId}"
       LifecycleConfiguration:
         Rules:
           - Id: CleanupOldArtifacts
             Status: Enabled
-            ExpirationInday: 7
+            ExpirationInDays: 7
 
-# IAM Role cho CodeBuild - quen build quan co
-CodeBuildServiceRole:
-  Type: AWS::IAM::Role
-  Properties:
-    RoleName: !Sub "periodiq-codebuild-role-${Environment}"
-    AssumeRolePolicyDocument:
-      Version: "2012-10-17"
-      Statement:
-        - Effect: Allow
-          Principal:
-            Service: codebuild.amazonaws.com
-          Action: "sts:AssumeRole"
-    Policies:
-      - PolicyName: CodeBuildPolicy
-        PolicyDocument:
-          Version: "2012-10-17"
-          Statement:
-            #quyen ghi logs
-            - Effect: Allow
-              Action:
-                - "logs:CreateLogGroup"
-                - "logs:CreateLogStream"
-                - "logs:PutLogEvents"
-              Resource: "*"
-              # quyen doc/ghi S3 (artifacts + frontend)
-            - Effect: Allow
-              Action:
-                - "s3:GetObject"
-                - "s3:PutObject"
-                - "s3:DeleteObject"
-                - "s3:ListBucket"
-              Resource: "*"
-            #quyen cho SAM deploy
-            - Effect: Allow
-              Action:
-                - "cloudformation:*"
-                - "lambda:*"
-                - "apigateway"
-                - "dynamodb:*"
-                - "sqs:*"
-                - "sns:*"
-                - "iam:*"
-                - "logs:*"
-              Resource: "*"
-#IAM Role cho CodePipeline
-CodePipelineServiceRole:
-  Type: AWS::IAM::Role
-  Properties:
-    RoleName: !Sub "periodiq-codepipeline-role-${Environment}"
-    AssumeRolePolicyDocument:
-      Version: "2012-10-27"
-      Statement:
-        - Effect: Allow
-          Principal:
-            Service: codepipeline.amazonaws.com
-          Action: "sts:AssumeRole"
-    Policies:
-      - PolicyName: CodePipelinePolicy
-        PolicyDocument:
-          Version: "2012-10-27"
-          Statement:
-            - Effect: Allow
-              Action:
-                - "s3:*"
-                - "codebuild:*"
-                - "cloudformation:*"
-                - "codestar-connections:UseConnection"
-                - "iam:PassRole"
-              Resource: "*"
+  # IAM Role cho CodeBuild
+  CodeBuildServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "periodiq-codebuild-role-${Environment}"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: CodeBuildPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - "s3:GetObject"
+                  - "s3:PutObject"
+                  - "s3:DeleteObject"
+                  - "s3:ListBucket"
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - "cloudformation:*"
+                  - "lambda:*"
+                  - "apigateway:*"
+                  - "dynamodb:*"
+                  - "sqs:*"
+                  - "sns:*"
+                  - "iam:*"
+                  - "logs:*"
+                Resource: "*"
 
-# CodeBuild Project - Backend (.NET)
-BackendBuildProject:
-  Type: AWS::CodeBuild::Project
-  Properties:
-    Name: !Sub "periodiq-backend-build-${Environment}"
-    Description: "Build PeriodIQ Backend (.NET 9)"
-    ServiceRole: !GetAtt CodeBuildServiceRole.Arn
-    Source:
-      Type: CODEPIPELINE
-      BuildSpec: buildspec-backend.yml # doc file build spec o root
-    Environment:
-      Type: LINUX_CONTAINER
-      ComputeType: BUILD_GENERAL1_SMALL #3gb ram, 2vcpu
-      Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
-    Artifacts:
-      Type: CODEPIPELINE
-    TimeoutInMinutes: 15
+  # IAM Role cho CodePipeline
+  CodePipelineServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "periodiq-codepipeline-role-${Environment}"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: CodePipelinePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "s3:*"
+                  - "codebuild:*"
+                  - "cloudformation:*"
+                  - "codestar-connections:UseConnection"
+                  - "iam:PassRole"
+                Resource: "*"
 
-# CodeBuild Project - Frontend (React)
-FrontendBuildProject:
-  Type: AWS::CodeBuild::Project
-  Properties:
-    Name: !Sub "periodiq-frontend-build-${Environment}"
-    Description: "Build PeriodIQ Frontend (React + Vite)"
-    ServiceRole: !GetAtt CodeBuildServiceRole.Arn
-    Source:
-      Type: CODEPIPELINE
-      BuildSpec: buildspec-frontend.yml
-    Environment:
-      Type: LINUX_CONTAINER
-      ComputeType: BUILD_GENERAL1_SMALL
-      Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
-      EnvironmentVariables:
-        # truyen ten S3 bucket vao codebuild (dung trong buildspec post_build)
-        - Name: FRONTEND_BUCKET_NAME
-          Value: !Sub "periodiq-frontend-${Environment}-${AWS::AccountId}"
+  # CodeBuild Project - Backend (.NET)
+  BackendBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub "periodiq-backend-build-${Environment}"
+      Description: "Build PeriodIQ Backend (.NET 9)"
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: buildspec-backend.yml
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+      Artifacts:
+        Type: CODEPIPELINE
+      TimeoutInMinutes: 15
+
+  # CodeBuild Project - Frontend (React)
+  FrontendBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub "periodiq-frontend-build-${Environment}"
+      Description: "Build PeriodIQ Frontend (React + Vite)"
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: buildspec-frontend.yml
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        EnvironmentVariables:
+          - Name: FRONTEND_BUCKET_NAME
+            Value: !Sub "periodiq-frontend-${Environment}-${AWS::AccountId}"
       Artifacts:
         Type: CODEPIPELINE
       TimeoutInMinutes: 10
 
-# CodeBuild Project - SAM Deploy
-SamDeployProject:
-  Type: AWS::CodeBuild::Project
-  Properties:
-    Name: !Sub "periodiq-san-deploy-${Environment}"
-    Description: "Deploy PeriodIQ via SAM (CloudFormation)"
-    ServiceRole: !GetAtt CodeBuildServiceRole.Arn
-    Source:
-      Type: CODEPIPELINE
-      # Inline buildspec cho SAM deploy (ngan khong can file rieng)
-      BuildSpect: |
-        version: 0.2
-        phases:
-          install:
-            commands:
-              - echo "Cat dat SAM CLI..."
-              - pip install aws-sam-cli
-              - sam --version
-          build:
-            commands:
-              - echo "SAM Build..."
-              - sam build
-              - echo "SAM Deploy..."
-              - sam deploy --no-confirm-changeset --no-fail-on-empty-changeset
-          post_build:
-            commands:
-              - echo "Deploy Hoan Tat"
-              - echo "Kiem tra Health Check..."
-              - |
-                API_URL=$(aws cloudformation describe-stacks \
-                  --stack-name periodiq-dev \
-                  --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" \
-                  --output text)
-                echo "API URL: $API_URL"
-                curl -f "$API_URL/api/health" || echo "CANH BAO: Health check THAT BAI"
+  # CodeBuild Project - SAM Deploy
+  SamDeployProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub "periodiq-sam-deploy-${Environment}"
+      Description: "Deploy PeriodIQ via SAM (CloudFormation)"
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: |
+          version: 0.2
+          phases:
+            install:
+              commands:
+                - echo "Cai dat SAM CLI..."
+                - pip install aws-sam-cli
+                - sam --version
+            build:
+              commands:
+                - echo "SAM Build..."
+                - sam build
+                - echo "SAM Deploy..."
+                - sam deploy --no-confirm-changeset --no-fail-on-empty-changeset
+            post_build:
+              commands:
+                - echo "Deploy Hoan Tat"
+                - echo "Kiem tra Health Check..."
+                - |
+                  API_URL=$(aws cloudformation describe-stacks \
+                    --stack-name periodiq-dev \
+                    --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" \
+                    --output text)
+                  echo "API URL: $API_URL"
+                  curl -f "$API_URL/api/health" || echo "CANH BAO: Health check THAT BAI"
       Environment:
         Type: LINUX_CONTAINER
         ComputeType: BUILD_GENERAL1_SMALL
@@ -184,29 +177,80 @@ SamDeployProject:
         Type: CODEPIPELINE
       TimeoutInMinutes: 20
 
-# CodePipeline - Orchestrate tat ca stage
-Pipeline:
-  Type: AWS::CodePipeline::Pipeline
-  Properties:
-    Name: !Sub "periodiq-pipeline-${Environment}"
-    RoleArn: !GetAtt CodePipelineServiceRole.Arn
-    ArtifactStore:
-      Type: S3
-      Location: !Ref PipefileArtifactBucket
-    Stages:
-      # Stage 1: Source (lay code tu github)
-      - Name: Source
-        Actions:
-          - Name: GitHubSource
-            ActionTypeId:
-              Category: Source
-              Owner: AWS
-              Provider: CodeStarSourceConnection
-              Version: "1"
-            Configuration:
-              ConnectionArn: !Ref GitHubConnectionArn
-              FullRepositoryId: !Ref GitHubRepo
-              BranchName: !Ref GitHubBranch
-              OutputArtifactFormat: CODE_ZIP
-            OutputArtifacts:
-              - Name: SourceCode
+  # CodePipeline - Orchestrate tat ca stage
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !Sub "periodiq-pipeline-${Environment}"
+      RoleArn: !GetAtt CodePipelineServiceRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref PipelineArtifactBucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: GitHubSource
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeStarSourceConnection
+                Version: "1"
+              Configuration:
+                ConnectionArn: !Ref GitHubConnectionArn
+                FullRepositoryId: !Ref GitHubRepo
+                BranchName: !Ref GitHubBranch
+                OutputArtifactFormat: CODE_ZIP
+              OutputArtifacts:
+                - Name: SourceCode
+
+        - Name: BuildBackend
+          Actions:
+            - Name: BuildDotNet
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: "1"
+              Configuration:
+                ProjectName: !Ref BackendBuildProject
+              InputArtifacts:
+                - Name: SourceCode
+              OutputArtifacts:
+                - Name: BackendBuild
+
+        - Name: BuildFrontend
+          Actions:
+            - Name: BuildReact
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: "1"
+              Configuration:
+                ProjectName: !Ref FrontendBuildProject
+              InputArtifacts:
+                - Name: SourceCode
+              OutputArtifacts:
+                - Name: FrontendBuild
+
+        - Name: Deploy
+          Actions:
+            - Name: SamDeploy
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: "1"
+              Configuration:
+                ProjectName: !Ref SamDeployProject
+              InputArtifacts:
+                - Name: SourceCode
+
+Outputs:
+  PipelineName:
+    Value: !Ref Pipeline
+    Description: "Ten CodePipeline"
+
+  PipelineUrl:
+    Value: !Sub "https://console.aws.amazon.com/codepipeline/home?region=${AWS::Region}#/view/${Pipeline}"
+    Description: "URL xem pipeline tren AWS Console"

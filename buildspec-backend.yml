@@ -1,14 +1,12 @@
-# codebuild doc file nay de biet cach build + test + package backend
 version: 0.2
 
-# bien moi truong - codebuild tu set hoac lay tu pipeline
 env:
     variables:
         DOTNET_ROOT: /root/.dotnet
-        DOTNET_CLI_TELEMENTRY_OPTOUT: "1"
+        DOTNET_CLI_TELEMETRY_OPTOUT: "1"
         DOTNET_NOLOGO: "1"
+
 phases:
-    # INSTALL: Cat dat dependencies
     install:
         runtime-versions:
             dotnet: 8.0
@@ -19,54 +17,40 @@ phases:
             - echo "Kiem tra thu muc project..."
             - ls -la PeriodIQ.Backend/
 
-# PRE_BUILD: Restore NuGet packages
-pre_build:
-    commands:
-        - echo "=== PRE_BUILD PHASE ==="
-        - echo "Restore NuGet package..."
-        - dotnet restore PeriodIQ.Backend/PeriodIQ.sln
-        - echo "Restore thanh cong!"
-        - dotnet list PeriodIQ.Backend/PeriodIQ.sln package --vulnerable --include-transitive
-# BUILD: Compite + Test + Publish
-build:
-    commands:
-        - echo "BUILD PHASE"
-        #buoc 1 build solution (kiem tra compile errors)
-        - echo "Build solution..."
-        - SHORT_SHA=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c1-7)
-        - echo "Version: build-${CODE_BUILD_NUMBER}-${SHORT_SHA}"
-        - dotnet build PeriodIQ.Backend/PeriodIQ.sln --configuration Release --no-restore
-        # buoc 2 chay unit test
-        # --no-build khong build lai
-        # --logger trx: xuat ket qua test dang file .trx (CodeBuild hieu duoc)
-        # neu chua co test project, lenh nay van pass
-        - echo "Chay unit tests..."
-        - dotnet test PeriodIQ.Backend/PeriodIQ.sln --configuration Release --no-build --logger trx --results-directiory ./test-results --collect "XPlat Code Coverage"
-        #buoc 3 publish (dong goi app thanh folder san sang deploy)
-        # --self-contained true: dong kem .NET 9 runtime vao package
-        # vi Lambda dung custom runtime, khong co san .net9
-        # -r linux-x86_64: target os
-        - echo "Publish API project..."
-        - dotnet publish PeriodIQ.Backend/PeriodIQ.Api.csproj --configuration Release --output ./publish --self-contained true --runtime linux-x64
+    pre_build:
+        commands:
+            - echo "=== PRE_BUILD PHASE ==="
+            - echo "Restore NuGet package..."
+            - dotnet restore PeriodIQ.Backend/PeriodIQ.sln
+            - echo "Restore thanh cong!"
+            - dotnet list PeriodIQ.Backend/PeriodIQ.sln package --vulnerable --include-transitive
 
-        - echo "Build THANH CONG!"
+    build:
+        commands:
+            - echo "BUILD PHASE"
+            - echo "Build solution..."
+            - SHORT_SHA=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c1-7)
+            - echo "Version: build-${CODEBUILD_BUILD_NUMBER}-${SHORT_SHA}"
+            - dotnet build PeriodIQ.Backend/PeriodIQ.sln --configuration Release --no-restore
+            - echo "Chay unit tests..."
+            - dotnet test PeriodIQ.Backend/PeriodIQ.sln --configuration Release --no-build --logger trx --results-directory ./test-results --collect "XPlat Code Coverage"
+            - echo "Publish API project..."
+            - dotnet publish PeriodIQ.Backend/PeriodIQ.Api/PeriodIQ.Api.csproj --configuration Release --output ./publish --self-contained true --runtime linux-x64
+            - echo "Build THANH CONG!"
 
-# POST_BUILD: dong goi artifacts
-post_build:
-    commands:
-        - echo "=== POST_BUILD PHASE ==="
-        - echo "Dong goi artifacts..."
-        - ls -la ./publish/
-        - echo "Post-build HOAN TAT!"
+    post_build:
+        commands:
+            - echo "=== POST_BUILD PHASE ==="
+            - echo "Dong goi artifacts..."
+            - ls -la ./publish/
+            - echo "Post-build HOAN TAT!"
 
-#Artifacts: output cua build - CodePipeline dung de deploy
 artifacts:
     files:
         - "**/*"
-    base-directory: publish # lay tat ca file trong thu muc publish
-    discard-paths: no # giu nguyen thu muc goc
+    base-directory: publish
+    discard-paths: no
 
-# cache: luuw Nuget packages de build lan sau nhanh hon
 cache:
     paths:
         - /root/.nuget/packages/**/*
@@ -75,5 +59,5 @@ reports:
     periodiq-test-report:
         files:
             - "**/*.trx"
-        base-directory: test-result
+        base-directory: test-results
         file-format: VisualStudioTrx

@@ -1,13 +1,10 @@
-#build spec cho periodiq frontend
-#buid react app -> output dist/ -> upload len s3
 version: 0.2
 
 env:
     variables:
-        NODE_OPTIONS: "--max-old-space-size=4096" #tang ram cho node
+        NODE_OPTIONS: "--max-old-space-size=4096"
 
 phases:
-    # INSTALL: cai nodejs + npm packages
     install:
         runtime-versions:
             nodejs: 20
@@ -18,36 +15,33 @@ phases:
             - echo "Cai dat npm packages..."
             - cd PeriodIQ.Frontend
             - npm ci
-# BUILD: build react app
-build:
-    commands:
-        - "=== build phase ==="
-        - cd PeriodIQ.Frontend/
-        # lint kiem tra code style
-        - echo "Chay linter..."
-        - npm run lint || true
-        # build production
-        - echo "Build production..."
-        - npm run build
-        - echo "Build THANH CONG!"
-        - echo "kiem tra output..."
-        - ls -la dist/
-        - npm audit --audit-level=high
-post_build:
-    commands:
-        - echo "=== POST_BUILD PHASE ==="
-        - cd PeriodIQ.Frontend
-        # sync thu muc dist/ len S3 bucket
-        # --delete: xoa file cu tren S3 khong con trong dist/
-        # --cache-control: browser cache trong 1 ngay
-        - aws s3 sync dist/ s3://${FRONTEND_BUCKET_NAME}/ --delete --cache-control "max-age=86400"
-        # index.html khong cache (luon lay ban moi nhat)
-        - aws s3 cp dist/index.html s3://${FRONTEND_BUCKET_NAME}/index.html --cache-control "no-cache, no-store, must-revalidate"
-        - echo "Upload S3 HOAN TAT!"
+
+    build:
+        commands:
+            - echo "=== BUILD PHASE ==="
+            - cd PeriodIQ.Frontend
+            - echo "Chay linter..."
+            - npm run lint || true
+            - echo "Build production..."
+            - npm run build
+            - echo "Build THANH CONG!"
+            - echo "kiem tra output..."
+            - ls -la dist/
+            - npm audit --audit-level=high
+
+    post_build:
+        commands:
+            - echo "=== POST_BUILD PHASE ==="
+            - cd PeriodIQ.Frontend
+            - aws s3 sync dist/ s3://${FRONTEND_BUCKET_NAME}/ --delete --cache-control "max-age=86400"
+            - aws s3 cp dist/index.html s3://${FRONTEND_BUCKET_NAME}/index.html --cache-control "no-cache, no-store, must-revalidate"
+            - echo "Upload S3 HOAN TAT!"
+
 artifacts:
     files:
         - "**/*"
     base-directory: PeriodIQ.Frontend/dist
+
 cache:
     paths:
         - PeriodIQ.Frontend/node_modules/**/*
