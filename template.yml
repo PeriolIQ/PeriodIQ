@@ -339,7 +339,7 @@ Resources:
   ExerciseTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "Exercise-${Environment}"
+      TableName: "Exercise"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: Id
@@ -351,7 +351,7 @@ Resources:
   WorkoutTemplateTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "WorkoutTemplate-${Environment}"
+      TableName: "WorkoutTemplate"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: Id
@@ -363,7 +363,7 @@ Resources:
   RuleDefinitionTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "RuleDefinition-${Environment}"
+      TableName: "RuleDefinition"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: Id
@@ -375,7 +375,7 @@ Resources:
   UserProfileTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "UserProfile-${Environment}"
+      TableName: "UserProfile"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: Id
@@ -396,7 +396,7 @@ Resources:
   PersonalRecordHistoryTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "PersonalRecordHistory-${Environment}"
+      TableName: "PersonalRecordHistory"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: Id
@@ -421,7 +421,7 @@ Resources:
   DailyCnsStatusTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "DailyCnsStatus-${Environment}"
+      TableName: "DailyCnsStatus"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: Id
@@ -446,7 +446,7 @@ Resources:
   WorkoutPlanTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "WorkoutPlan-${Environment}"
+      TableName: "WorkoutPlan"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: Id
@@ -471,7 +471,7 @@ Resources:
   WorkoutSessionLogTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Sub "WorkoutSessionLog-${Environment}"
+      TableName: "WorkoutSessionLog"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: Id
