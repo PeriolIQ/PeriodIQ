@@ -2,6 +2,9 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <!-- provided.al2023 (custom runtime cho .NET 10) chay file ten 'bootstrap'.
+         Ep ten output executable = bootstrap de tranh Runtime.InvalidEntrypoint. -->
+    <AssemblyName>bootstrap</AssemblyName>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <SelfContained>true</SelfContained>
