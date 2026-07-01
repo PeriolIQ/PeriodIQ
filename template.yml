@@ -235,23 +235,25 @@ Resources:
             Method: GET
             Auth:
               Authorizer: NONE   # health check phai public, khong qua JWT
+      # DynamoDB tables khong con quan ly boi stack nay (tao/quan ly ngoai IaC).
+      # Tham chieu bang ten co dinh thay vi !Ref.
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: !Ref ExerciseTable
+            TableName: "Exercise"
         - DynamoDBCrudPolicy:
-            TableName: !Ref WorkoutTemplateTable
+            TableName: "WorkoutTemplate"
         - DynamoDBCrudPolicy:
-            TableName: !Ref RuleDefinitionTable
+            TableName: "RuleDefinition"
         - DynamoDBCrudPolicy:
-            TableName: !Ref UserProfileTable
+            TableName: "UserProfile"
         - DynamoDBCrudPolicy:
-            TableName: !Ref PersonalRecordHistoryTable
+            TableName: "PersonalRecordHistory"
         - DynamoDBCrudPolicy:
-            TableName: !Ref DailyCnsStatusTable
+            TableName: "DailyCnsStatus"
         - DynamoDBCrudPolicy:
-            TableName: !Ref WorkoutPlanTable
+            TableName: "WorkoutPlan"
         - DynamoDBCrudPolicy:
-            TableName: !Ref WorkoutSessionLogTable
+            TableName: "WorkoutSessionLog"
         - SQSSendMessagePolicy:
             QueueName: !GetAtt WorkoutProcessingQueue.QueueName
         - CloudWatchLogsFullAccess
@@ -334,164 +336,12 @@ Resources:
         MaxAge: 300
 
   # ==========================================================================
-  # 7. DYNAMODB - 8 bang du lieu (Nguoi 4)
+  # 7. DYNAMODB - CAC BANG DU LIEU
+  # Cac bang (Exercise, WorkoutTemplate, RuleDefinition, UserProfile,
+  # PersonalRecordHistory, DailyCnsStatus, WorkoutPlan, WorkoutSessionLog)
+  # KHONG con quan ly boi stack nay - da ton tai san ngoai CloudFormation.
+  # Quyen truy cap cap qua DynamoDBCrudPolicy tham chieu ten bang co dinh o tren.
   # ==========================================================================
-  ExerciseTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: "Exercise"
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: Id
-          AttributeType: S
-      KeySchema:
-        - AttributeName: Id
-          KeyType: HASH
-
-  WorkoutTemplateTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: "WorkoutTemplate"
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: Id
-          AttributeType: S
-      KeySchema:
-        - AttributeName: Id
-          KeyType: HASH
-
-  RuleDefinitionTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: "RuleDefinition"
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: Id
-          AttributeType: S
-      KeySchema:
-        - AttributeName: Id
-          KeyType: HASH
-
-  UserProfileTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: "UserProfile"
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: Id
-          AttributeType: S
-        - AttributeName: Email
-          AttributeType: S
-      KeySchema:
-        - AttributeName: Id
-          KeyType: HASH
-      GlobalSecondaryIndexes:
-        - IndexName: Email-index
-          KeySchema:
-            - AttributeName: Email
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
-
-  PersonalRecordHistoryTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: "PersonalRecordHistory"
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: Id
-          AttributeType: S
-        - AttributeName: UserId
-          AttributeType: S
-        - AttributeName: ExerciseId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: Id
-          KeyType: HASH
-      GlobalSecondaryIndexes:
-        - IndexName: UserId-ExerciseId-index
-          KeySchema:
-            - AttributeName: UserId
-              KeyType: HASH
-            - AttributeName: ExerciseId
-              KeyType: RANGE
-          Projection:
-            ProjectionType: ALL
-
-  DailyCnsStatusTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: "DailyCnsStatus"
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: Id
-          AttributeType: S
-        - AttributeName: UserId
-          AttributeType: S
-        - AttributeName: DateLog
-          AttributeType: S
-      KeySchema:
-        - AttributeName: Id
-          KeyType: HASH
-      GlobalSecondaryIndexes:
-        - IndexName: UserId-DateLog-index
-          KeySchema:
-            - AttributeName: UserId
-              KeyType: HASH
-            - AttributeName: DateLog
-              KeyType: RANGE
-          Projection:
-            ProjectionType: ALL
-
-  WorkoutPlanTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: "WorkoutPlan"
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: Id
-          AttributeType: S
-        - AttributeName: UserId
-          AttributeType: S
-        - AttributeName: StartDate
-          AttributeType: S
-      KeySchema:
-        - AttributeName: Id
-          KeyType: HASH
-      GlobalSecondaryIndexes:
-        - IndexName: UserId-StartDate-index
-          KeySchema:
-            - AttributeName: UserId
-              KeyType: HASH
-            - AttributeName: StartDate
-              KeyType: RANGE
-          Projection:
-            ProjectionType: ALL
-
-  WorkoutSessionLogTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: "WorkoutSessionLog"
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: Id
-          AttributeType: S
-        - AttributeName: UserId
-          AttributeType: S
-        - AttributeName: CompletedAt
-          AttributeType: S
-      KeySchema:
-        - AttributeName: Id
-          KeyType: HASH
-      GlobalSecondaryIndexes:
-        - IndexName: UserId-CompletedAt-index
-          KeySchema:
-            - AttributeName: UserId
-              KeyType: HASH
-            - AttributeName: CompletedAt
-              KeyType: RANGE
-          Projection:
-            ProjectionType: ALL
 
   # ==========================================================================
   # 8. SQS (Nguoi 3) - hang doi xu ly workout (async)
