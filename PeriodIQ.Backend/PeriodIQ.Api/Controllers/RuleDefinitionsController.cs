@@ -1,4 +1,5 @@
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PeriodIQ.Domain.Entities;
 using PeriodIQ.Core.Services;
@@ -7,6 +8,7 @@ namespace PeriodIQ.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Policy = "AdminOnly")]
 public class RuleDefinitionsController : ControllerBase
 {
     private readonly RuleDefinitionService _service;

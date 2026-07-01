@@ -66,7 +66,11 @@ builder.Services
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy =>
+        policy.RequireClaim("cognito:groups", "Admin"));
+});
 
 // ─── DynamoDB ─────────────────────────────────────────────────────────────
 var awsRegion = builder.Configuration["AWS:Region"] ?? "ap-southeast-1";
