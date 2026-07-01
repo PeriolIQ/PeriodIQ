@@ -46,9 +46,22 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddCors();
 
+var awsRegion = builder.Configuration["AWS:Region"] ?? "ap-southeast-1";
+
 // ─── JWT Authentication via AWS Cognito ───────────────────────────────────
-var cognitoAuthority = builder.Configuration["Cognito:Authority"]!;
-var cognitoAudience  = builder.Configuration["Cognito:Audience"]!;
+var cognitoUserPoolId = Environment.GetEnvironmentVariable("COGNITO_USER_POOL_ID");
+var cognitoClientId = Environment.GetEnvironmentVariable("COGNITO_CLIENT_ID");
+var cognitoAuthority = !string.IsNullOrWhiteSpace(cognitoUserPoolId)
+    ? $"https://cognito-idp.{awsRegion}.amazonaws.com/{cognitoUserPoolId}"
+    : builder.Configuration["Cognito:Authority"];
+var cognitoAudience = !string.IsNullOrWhiteSpace(cognitoClientId)
+    ? cognitoClientId
+    : builder.Configuration["Cognito:Audience"];
+
+if (string.IsNullOrWhiteSpace(cognitoAuthority))
+{
+    throw new InvalidOperationException("Cognito authority is not configured.");
+}
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -60,6 +73,7 @@ builder.Services
             ValidateIssuerSigningKey = true,
             ValidateIssuer           = true,
             ValidIssuer              = cognitoAuthority,
+            ValidAudience            = cognitoAudience,
             // Cognito access token không chứa aud — tắt để dùng được cả access token & id token
             ValidateAudience         = false,
             ValidateLifetime         = true,
@@ -70,7 +84,6 @@ builder.Services
 builder.Services.AddAuthorization();
 
 // ─── DynamoDB ─────────────────────────────────────────────────────────────
-var awsRegion = builder.Configuration["AWS:Region"] ?? "ap-southeast-1";
 var dynamoDbClient = new AmazonDynamoDBClient(new AmazonDynamoDBConfig
 {
     RegionEndpoint = Amazon.RegionEndpoint.GetBySystemName(awsRegion)
@@ -180,5 +193,4 @@ finally
     Log.Information("👋 Shutting down PeriodIQ API...");
     Log.CloseAndFlush();
 }
-
 

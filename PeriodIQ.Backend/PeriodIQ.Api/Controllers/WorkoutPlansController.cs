@@ -1,5 +1,9 @@
+using System;
+using System.Security.Claims;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PeriodIQ.Core.Models;
 using PeriodIQ.Domain.Entities;
 using PeriodIQ.Core.Services;
 
@@ -16,14 +20,42 @@ public class WorkoutPlansController : ControllerBase
         _workoutPlanService = workoutPlanService;
     }
 
+    [Authorize]
     [HttpPost("generate")]
-    public async Task<IActionResult> GeneratePlan([FromQuery] string userId, [FromQuery] string templateId)
+    public async Task<IActionResult> GeneratePlan(
+        [FromBody] WorkoutPlanGenerationRequest? request,
+        [FromQuery] string? userId,
+        [FromQuery] string? templateId)
     {
-        if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(templateId))
-            return BadRequest("Thiếu userId hoặc templateId");
+        try
+        {
+            var currentUserId = GetCurrentUserId(userId);
+            request ??= new WorkoutPlanGenerationRequest();
 
-        var plan = await _workoutPlanService.CreateAndSavePlanAsync(userId, templateId);
-        return Ok(new { Message = "Giáo án đã được tạo thành công", Data = plan });
+            if (!string.IsNullOrWhiteSpace(templateId) && string.IsNullOrWhiteSpace(request.TemplateId))
+            {
+                request.TemplateId = templateId;
+            }
+
+            var plan = await _workoutPlanService.CreateAndSavePlanAsync(currentUserId, request);
+            return Ok(new { Message = "Giáo án đã được tạo thành công", Data = plan });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { ex.Message });
+        }
+    }
+
+    private string GetCurrentUserId(string? fallbackUserId)
+    {
+        return User.FindFirstValue("sub")
+            ?? User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? fallbackUserId
+            ?? throw new UnauthorizedAccessException("Không tìm thấy userId trong JWT.");
     }
 
     [HttpGet]

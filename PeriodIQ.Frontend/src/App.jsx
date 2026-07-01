@@ -11,6 +11,7 @@ import ProfilePage from './pages/ProfilePage';
 import MonitoringPage from './pages/admin/MonitoringPage';
 import DeploysPage from './pages/admin/DeploysPage';
 import DeployDetailPage from './pages/admin/DeployDetailPage';
+import WorkoutPlansPage from './pages/WorkoutPlansPage';
 
 function Dashboard() {
   return (
@@ -124,6 +125,7 @@ function AppLayout() {
           {/* Protected routes */}
           <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+          <Route path="/workout-plans" element={<ProtectedRoute><WorkoutPlansPage /></ProtectedRoute>} />
 
           <Route path="*" element={<NotFound />} />
         </Routes>
@@ -143,4 +145,3 @@ function App() {
 }
 
 export default App;
-

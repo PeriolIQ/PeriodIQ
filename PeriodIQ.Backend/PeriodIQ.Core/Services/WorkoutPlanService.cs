@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using PeriodIQ.Domain.Entities;
 using PeriodIQ.Core.Interfaces.Repositories;
 using PeriodIQ.Core.Interfaces.Services;
+using PeriodIQ.Core.Models;
 
 namespace PeriodIQ.Core.Services;
 
@@ -29,10 +30,21 @@ public class WorkoutPlanService
     public async Task<WorkoutPlan> CreateAndSavePlanAsync(string userId, string templateId)
     {
         var plan = await _ruleEngine.GenerateWorkoutPlanAsync(userId, templateId);
+        return await SavePlanAndPublishEventAsync(plan);
+    }
+
+    public async Task<WorkoutPlan> CreateAndSavePlanAsync(string userId, WorkoutPlanGenerationRequest request)
+    {
+        var plan = await _ruleEngine.GenerateWorkoutPlanAsync(userId, request);
+        return await SavePlanAndPublishEventAsync(plan);
+    }
+
+    private async Task<WorkoutPlan> SavePlanAndPublishEventAsync(WorkoutPlan plan)
+    {
         await _planRepo.AddAsync(plan);
         await _queueService.SendMessageAsync("workout-plan-queue", new 
         {
-            UserId = userId,
+            plan.UserId,
             PlanId = plan.Id,
             Event = "PLAN_CREATED"
         });
