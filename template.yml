@@ -96,13 +96,14 @@ Resources:
 
   # ==========================================================================
   # 2. AWS WAF (Nguoi 1) - Chan SQL Injection, XSS, bot, rate limit
-  # LUU Y: Scope CLOUDFRONT bat buoc tao o region us-east-1
+  # LUU Y: Scope REGIONAL de tao duoc o ap-southeast-1 (CLOUDFRONT bat buoc us-east-1).
+  # REGIONAL WebACL khong gan vao CloudFront duoc -> gan vao Cognito User Pool (xem WebAclAssociation).
   # ==========================================================================
   PeriodIQWebAcl:
     Type: AWS::WAFv2::WebACL
     Properties:
       Name: !Sub "periodiq-waf-${Environment}"
-      Scope: CLOUDFRONT
+      Scope: REGIONAL
       DefaultAction:
         Allow: {}
       VisibilityConfig:
@@ -147,6 +148,13 @@ Resources:
             CloudWatchMetricsEnabled: true
             MetricName: RateLimitMetric
 
+  # Gan WAF REGIONAL vao Cognito User Pool (tai nguyen regional o ap-southeast-1)
+  PeriodIQWebAclAssociation:
+    Type: AWS::WAFv2::WebACLAssociation
+    Properties:
+      ResourceArn: !GetAtt PeriodIQUserPool.Arn
+      WebACLArn: !GetAtt PeriodIQWebAcl.Arn
+
   # ==========================================================================
   # 3. CLOUDFRONT (Nguoi 1) - CDN + dinh tuyen /api -> API Gateway
   # ==========================================================================
@@ -165,7 +173,7 @@ Resources:
       DistributionConfig:
         Enabled: true
         DefaultRootObject: index.html
-        WebACLId: !GetAtt PeriodIQWebAcl.Arn
+        # WAF chuyen sang REGIONAL gan vao Cognito -> khong gan vao CloudFront nua
         Origins:
           - Id: FrontendS3Origin
             DomainName: !GetAtt FrontendBucket.RegionalDomainName

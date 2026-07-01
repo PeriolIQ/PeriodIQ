@@ -489,11 +489,15 @@ Developer push code
 > 📌 **Cập nhật 2026-07-01 (nâng .NET 10):**
 > - Backend đã nâng lên **.NET 10** → cần cài .NET 10 SDK trên máy (`dotnet-install.sh --channel 10.0`) mới build được.
 > - Package `Microsoft.AspNetCore.Authentication.JwtBearer` đã lên `10.0.0`. Cấu hình Cognito JWT trong `Program.cs` giữ nguyên.
+>
+> 📌 **Cập nhật 2026-07-01 (WAF chuyển sang REGIONAL):**
+> - WAF scope `CLOUDFRONT` bắt buộc phải tạo ở region `us-east-1`, không tạo được trong stack `ap-southeast-1`. Do đó WebACL đổi sang **scope `REGIONAL`** và **gắn vào Cognito User Pool** (`AWS::WAFv2::WebACLAssociation`) thay vì gắn vào CloudFront.
+> - CloudFront **không còn `WebACLId`** — vẫn giữ đầy đủ CDN, HTTPS, OAC, định tuyến `/api`, SPA fallback. WAF giờ bảo vệ tầng auth (Cognito) thay vì edge.
 
 | Dịch vụ AWS | Vai trò |
 |-------------|---------|
-| **Amazon Cognito** | Setup User Pool, cấu hình JWT cho User + Admin |
-| **AWS WAF** | Cấu hình rule chặn bot, SQL Injection, XSS |
+| **Amazon Cognito** | Setup User Pool, cấu hình JWT cho User + Admin; WAF gắn vào User Pool |
+| **AWS WAF** | WebACL scope REGIONAL (ap-southeast-1), gắn Cognito — chặn bot, SQL Injection, XSS, rate limit |
 | **Amazon CloudFront** | Setup CDN, phân luồng static → S3 và /api → API Gateway |
 
 #### Backend
@@ -511,8 +515,8 @@ Developer push code
   - Middleware extract `CognitoUserId` từ JWT claims → map với `UserProfile.Id`
   - Phân quyền `[Authorize]` trên Controller, `[Authorize(Roles = "Admins")]` cho admin endpoints
 
-- **WAF rules**:
-  - Tạo Web ACL gắn vào CloudFront distribution
+- **WAF rules** (WebACL scope **REGIONAL**, ở `ap-southeast-1`):
+  - Tạo Web ACL và gắn vào **Cognito User Pool** qua `AWS::WAFv2::WebACLAssociation` (REGIONAL không gắn được vào CloudFront — scope CLOUDFRONT bắt buộc us-east-1)
   - Bật AWS Managed Rules: `AWSManagedRulesCommonRuleSet` (SQL injection, XSS)
   - Bật `AWSManagedRulesBotControlRuleSet` (chặn bot)
   - Rate limiting rule (ví dụ: 2000 requests/5 phút per IP)
@@ -521,7 +525,7 @@ Developer push code
   - Origin 1: S3 bucket (frontend) — default behavior `/*`
   - Origin 2: API Gateway — behavior `/api/*` (forward headers, cookies)
   - Cấu hình OAC (Origin Access Control) cho S3
-  - Gắn WAF Web ACL vào distribution
+  - **Không gắn WAF** vào distribution (WAF đã chuyển sang Cognito, xem mục WAF rules)
   - Setup custom domain + SSL certificate (ACM) nếu có
 
 - **DynamoDB table `UserProfile`**:

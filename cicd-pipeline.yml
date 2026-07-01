@@ -33,6 +33,9 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName: !Sub "periodiq-codebuild-role-${Environment}"
+      # SAM deploy tao rat nhieu dich vu (Cognito, WAF, CloudFront, SES...) -> cap Admin cho moi truong dev
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -51,12 +54,10 @@ Resources:
                   - "logs:CreateLogStream"
                   - "logs:PutLogEvents"
                 Resource: "*"
+              # s3:* vi SAM (resolve_s3=true) can CreateBucket + cau hinh bucket managed
               - Effect: Allow
                 Action:
-                  - "s3:GetObject"
-                  - "s3:PutObject"
-                  - "s3:DeleteObject"
-                  - "s3:ListBucket"
+                  - "s3:*"
                 Resource: "*"
               - Effect: Allow
                 Action:
@@ -240,6 +241,21 @@ Resources:
               OutputArtifacts:
                 - Name: BackendBuild
 
+        # Deploy truoc de SAM tao FrontendBucket + ha tang backend,
+        # sau do BuildFrontend moi sync dist/ len bucket da ton tai
+        - Name: Deploy
+          Actions:
+            - Name: SamDeploy
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: "1"
+              Configuration:
+                ProjectName: !Ref SamDeployProject
+              InputArtifacts:
+                - Name: SourceCode
+
         - Name: BuildFrontend
           Actions:
             - Name: BuildReact
@@ -254,19 +270,6 @@ Resources:
                 - Name: SourceCode
               OutputArtifacts:
                 - Name: FrontendBuild
-
-        - Name: Deploy
-          Actions:
-            - Name: SamDeploy
-              ActionTypeId:
-                Category: Build
-                Owner: AWS
-                Provider: CodeBuild
-                Version: "1"
-              Configuration:
-                ProjectName: !Ref SamDeployProject
-              InputArtifacts:
-                - Name: SourceCode
 
 Outputs:
   PipelineName:
