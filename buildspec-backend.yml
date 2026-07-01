@@ -8,10 +8,13 @@ env:
 
 phases:
     install:
-        runtime-versions:
-            dotnet: 8.0
         commands:
             - echo "=== INSTALL PHASE ==="
+            - echo "Cai dat .NET 10 SDK..."
+            - curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
+            - chmod +x /tmp/dotnet-install.sh
+            - /tmp/dotnet-install.sh --channel 10.0 --install-dir /root/.dotnet
+            - export PATH="/root/.dotnet:$PATH"
             - echo "Kiem tra .NET SDK version..."
             - dotnet --version
             - echo "Kiem tra thu muc project..."

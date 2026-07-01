@@ -149,6 +149,15 @@ Resources:
           phases:
             install:
               commands:
+                - echo "Cai dat .NET 10 SDK..."
+                - curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
+                - chmod +x /tmp/dotnet-install.sh
+                - /tmp/dotnet-install.sh --channel 10.0 --install-dir /root/.dotnet
+                - export DOTNET_ROOT="/root/.dotnet"
+                - export PATH="/root/.dotnet:/root/.dotnet/tools:$PATH"
+                - dotnet --version
+                - echo "Cai dat Amazon.Lambda.Tools..."
+                - dotnet tool install -g Amazon.Lambda.Tools
                 - echo "Cai dat SAM CLI..."
                 - pip install aws-sam-cli
                 - sam --version
