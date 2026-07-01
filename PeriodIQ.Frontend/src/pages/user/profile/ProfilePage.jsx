@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
-import api from '../services/axiosConfig';
+import { useAuth } from '@/context/AuthContext';
+import api from '@/services/axiosConfig';
 
 const FITNESS_LEVELS = ['Beginner', 'Intermediate', 'Advanced'];
 const GOALS = ['Strength', 'Hypertrophy', 'Endurance', 'Weight Loss', 'General Fitness'];

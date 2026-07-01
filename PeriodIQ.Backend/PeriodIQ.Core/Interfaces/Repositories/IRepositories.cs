@@ -10,3 +10,4 @@ public interface IPersonalRecordHistoryRepository : IGenericRepository<PersonalR
 public interface IDailyCnsStatusRepository : IGenericRepository<DailyCnsStatus> { }
 public interface IWorkoutPlanRepository : IGenericRepository<WorkoutPlan> { }
 public interface IWorkoutSessionLogRepository : IGenericRepository<WorkoutSessionLog> { }
+public interface IProgressRepository : IGenericRepository<Progress> { }

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { getCognitoErrorMessage } from '../services/authService';
+import { useAuth } from '@/context/AuthContext';
+import { getCognitoErrorMessage } from '@/services/authService';
 
 export default function LoginPage() {
   const { login } = useAuth();

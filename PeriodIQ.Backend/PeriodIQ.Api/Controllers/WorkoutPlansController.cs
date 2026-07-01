@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -60,6 +61,23 @@ public class WorkoutPlansController : ControllerBase
 
     [HttpGet]
     public async Task<IActionResult> GetAll() => Ok(await _workoutPlanService.GetAllAsync());
+
+    [Authorize]
+    [HttpGet("my-plans")]
+    public async Task<IActionResult> GetMyPlans()
+    {
+        try
+        {
+            var userId = GetCurrentUserId(null);
+            var all = await _workoutPlanService.GetAllAsync();
+            var myPlans = all.Where(x => x.UserId == userId).ToList();
+            return Ok(myPlans);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Unauthorized();
+        }
+    }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(string id)

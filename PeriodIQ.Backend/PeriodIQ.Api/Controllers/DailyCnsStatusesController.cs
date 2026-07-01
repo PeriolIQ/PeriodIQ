@@ -2,11 +2,15 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using PeriodIQ.Domain.Entities;
 using PeriodIQ.Core.Services;
+using System.Security.Claims;
+using System.Linq;
+using Microsoft.AspNetCore.Authorization;
 
 namespace PeriodIQ.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class DailyCnsStatusesController : ControllerBase
 {
     private readonly DailyCnsStatusService _service;
@@ -18,6 +22,17 @@ public class DailyCnsStatusesController : ControllerBase
 
     [HttpGet]
     public async Task<IActionResult> GetAll() => Ok(await _service.GetAllAsync());
+
+    [HttpGet("my-status")]
+    public async Task<IActionResult> GetMyStatus()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+        var all = await _service.GetAllAsync();
+        var myStatus = all.Where(x => x.UserId == userId).OrderByDescending(x => x.DateLog).FirstOrDefault();
+        return Ok(myStatus);
+    }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(string id)

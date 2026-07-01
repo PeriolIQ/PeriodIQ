@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { generateWorkoutPlan } from '../services/workoutPlanService';
+import { generateWorkoutPlan } from '@/services/workoutPlanService';
 
 const EQUIPMENT = ['Barbell', 'Dumbbell', 'Machine', 'Bodyweight'];
 const LIMITATIONS = [

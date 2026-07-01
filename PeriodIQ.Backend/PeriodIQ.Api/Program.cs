@@ -20,11 +20,15 @@ using PeriodIQ.Infrastructure.Messaging;
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Debug()
     .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
-    .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Information)
+    .MinimumLevel.Override("Microsoft.AspNetCore.Hosting", LogEventLevel.Information)
+    .MinimumLevel.Override("Microsoft.AspNetCore.Authentication", LogEventLevel.Information)
     .Enrich.FromLogContext()
     .Enrich.WithThreadId()
-    .WriteTo.Console(
-        outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}"
+    .WriteTo.Logger(lc => lc
+        .Filter.ByExcluding(e => e.Level == LogEventLevel.Warning)
+        .WriteTo.Console(
+            outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] [{SourceContext}] {Message:lj}{NewLine}{Exception}"
+        )
     )
     .WriteTo.File(
         path: "Logs/all/periodiq-.log",
@@ -42,6 +46,7 @@ Log.Logger = new LoggerConfiguration()
 Log.Information("[STARTUP] Starting PeriodIQ API");
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Host.UseSerilog();
 
 builder.Services.AddControllers();
 builder.Services.AddCors();
@@ -83,12 +88,29 @@ builder.Services
 
 builder.Services.AddAuthorization();
 
-// ─── DynamoDB ─────────────────────────────────────────────────────────────
-var dynamoDbClient = new AmazonDynamoDBClient(new AmazonDynamoDBConfig
+// ─── DynamoDB & SQS ─────────────────────────────────────────────────────────────
+var accessKey = builder.Configuration["AWS:AccessKey"];
+var secretKey = builder.Configuration["AWS:SecretKey"];
+Amazon.Runtime.AWSCredentials credentials = null;
+if (!string.IsNullOrEmpty(accessKey) && !string.IsNullOrEmpty(secretKey))
 {
-    RegionEndpoint = Amazon.RegionEndpoint.GetBySystemName(awsRegion)
-});
+    credentials = new Amazon.Runtime.BasicAWSCredentials(accessKey, secretKey);
+}
+
+var regionEndpoint = Amazon.RegionEndpoint.GetBySystemName(awsRegion);
+
+var dynamoDbClient = credentials != null
+    ? new AmazonDynamoDBClient(credentials, new AmazonDynamoDBConfig { RegionEndpoint = regionEndpoint })
+    : new AmazonDynamoDBClient(new AmazonDynamoDBConfig { RegionEndpoint = regionEndpoint });
+
+var sqsRegionEndpoint = Amazon.RegionEndpoint.APSoutheast2;
+
+var sqsClient = credentials != null
+    ? new Amazon.SQS.AmazonSQSClient(credentials, new Amazon.SQS.AmazonSQSConfig { RegionEndpoint = sqsRegionEndpoint })
+    : new Amazon.SQS.AmazonSQSClient(new Amazon.SQS.AmazonSQSConfig { RegionEndpoint = sqsRegionEndpoint });
+
 builder.Services.AddSingleton<IAmazonDynamoDB>(dynamoDbClient);
+builder.Services.AddSingleton<Amazon.SQS.IAmazonSQS>(sqsClient);
 builder.Services.AddSingleton<IDynamoDBContext>(
     new DynamoDBContextBuilder().WithDynamoDBClient(() => dynamoDbClient).Build()
 );
@@ -101,7 +123,7 @@ builder.Services.AddScoped<IPersonalRecordHistoryRepository, PersonalRecordHisto
 builder.Services.AddScoped<IDailyCnsStatusRepository, DailyCnsStatusRepository>();
 builder.Services.AddScoped<IWorkoutPlanRepository, WorkoutPlanRepository>();
 builder.Services.AddScoped<IWorkoutSessionLogRepository, WorkoutSessionLogRepository>();
-
+builder.Services.AddScoped<IProgressRepository, ProgressRepository>();
 // ─── Services ─────────────────────────────────────────────────────────────
 
 builder.Services.AddScoped<IMessageQueueService, SqsMessageQueueService>();

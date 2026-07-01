@@ -269,38 +269,37 @@ Resources:
   # 5. LAMBDA · WORKER (Nguoi 3) - xu ly message tu SQS, gui email qua SES
   # TODO Nguoi 3: tao project PeriodIQ.Worker/ (hoac doi CodeUri sang du an that)
   # ==========================================================================
-# TODO Nguoi 3: BO COMMENT khi da tao project PeriodIQ.Worker/
-#   PeriodIQWorkerFunction:
-#     Type: AWS::Serverless::Function
-#     Properties:
-#       FunctionName: !Sub "periodiq-worker-${Environment}"
-#       Handler: PeriodIQ.Worker
-#       CodeUri: ./PeriodIQ.Backend/PeriodIQ.Worker/
-#       Description: "Worker xu ly SQS message - SEND_PLAN_EMAIL, WORKOUT_REMINDER, PR_CONGRATULATION"
-#       Environment:
-#         Variables:
-#           SES_SENDER_EMAIL: !Ref SesSenderEmail
-#           WORKOUT_PLAN_TABLE: !Ref WorkoutPlanTable
-#       Events:
-#         SqsEvent:
-#           Type: SQS
-#           Properties:
-#             Queue: !GetAtt WorkoutProcessingQueue.Arn
-#             BatchSize: 5
-#       Policies:
-#         - DynamoDBReadPolicy:
-#             TableName: !Ref WorkoutPlanTable
-#         - SESCrudPolicy:
-#             IdentityName: !Ref SesSenderEmail
-#         - SQSPollerPolicy:
-#             QueueName: !GetAtt WorkoutProcessingQueue.QueueName
-#       Tags:
-#         Project: PeriodIQ
-#         Environment: !Ref Environment
-#     Metadata:
-#       BuildMethod: dotnet10
-#       BuildProperties:
-#         ProjectSubPath: PeriodIQ.Worker/PeriodIQ.Worker.csproj
+  PeriodIQWorkerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "periodiq-worker-${Environment}"
+      Handler: PeriodIQ.Api::PeriodIQ.Api.Handlers.SqsHandler::FunctionHandler
+      CodeUri: ./PeriodIQ.Backend/PeriodIQ.Api/
+      Description: "Worker xu ly SQS message - SEND_PLAN_EMAIL, WORKOUT_REMINDER, PR_CONGRATULATION"
+      Environment:
+        Variables:
+          SES_SENDER_EMAIL: !Ref SesSenderEmail
+          WORKOUT_PLAN_TABLE: !Ref WorkoutPlanTable
+      Events:
+        SqsEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt WorkoutProcessingQueue.Arn
+            BatchSize: 5
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref WorkoutPlanTable
+        - SESCrudPolicy:
+            IdentityName: !Ref SesSenderEmail
+        - SQSPollerPolicy:
+            QueueName: !GetAtt WorkoutProcessingQueue.QueueName
+      Tags:
+        Project: PeriodIQ
+        Environment: !Ref Environment
+    Metadata:
+      BuildMethod: dotnet10
+      BuildProperties:
+        ProjectSubPath: PeriodIQ.Api/PeriodIQ.Api.csproj
 
   # ==========================================================================
   # 6. API GATEWAY - HTTP API + Cognito JWT Authorizer (Nguoi 4 + Nguoi 1)
@@ -342,6 +341,18 @@ Resources:
   # KHONG con quan ly boi stack nay - da ton tai san ngoai CloudFormation.
   # Quyen truy cap cap qua DynamoDBCrudPolicy tham chieu ten bang co dinh o tren.
   # ==========================================================================
+
+  ProgressTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: "Progress"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: Id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: Id
+          KeyType: HASH
 
   # ==========================================================================
   # 8. SQS (Nguoi 3) - hang doi xu ly workout (async)
@@ -499,25 +510,24 @@ Resources:
       AlarmActions:
         - !Ref AlertSnsTopic
 
-# TODO Nguoi 3: BO COMMENT khi da tao PeriodIQWorkerFunction
-#   WorkerInvocationErrorAlarm:
-#     Type: AWS::CloudWatch::Alarm
-#     Properties:
-#       AlarmName: !Sub "periodiq-worker-invocation-errors-${Environment}"
-#       AlarmDescription: "CANH BAO: Lambda Worker bi loi khi xu ly SQS message"
-#       Namespace: "AWS/Lambda"
-#       MetricName: "Errors"
-#       Dimensions:
-#         - Name: FunctionName
-#           Value: !Ref PeriodIQWorkerFunction
-#       Statistic: Sum
-#       Period: 300
-#       EvaluationPeriods: 1
-#       Threshold: 3
-#       ComparisonOperator: GreaterThanOrEqualToThreshold
-#       TreatMissingData: notBreaching
-#       AlarmActions:
-#         - !Ref AlertSnsTopic
+  WorkerInvocationErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "periodiq-worker-invocation-errors-${Environment}"
+      AlarmDescription: "CANH BAO: Lambda Worker bi loi khi xu ly SQS message"
+      Namespace: "AWS/Lambda"
+      MetricName: "Errors"
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref PeriodIQWorkerFunction
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 3
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlertSnsTopic
 
   DlqMessageAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -579,7 +589,6 @@ Outputs:
     Description: "Lambda API function ARN"
     Value: !GetAtt PeriodIQApiFunction.Arn
 
-# TODO Nguoi 3: BO COMMENT khi da tao PeriodIQWorkerFunction
-#   WorkerFunctionName:
-#     Description: "Lambda Worker function name"
-#     Value: !Ref PeriodIQWorkerFunction
+  WorkerFunctionName:
+    Description: "Lambda Worker function name"
+    Value: !Ref PeriodIQWorkerFunction

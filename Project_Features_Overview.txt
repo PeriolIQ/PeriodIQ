@@ -1,0 +1,38 @@
+DỰ ÁN: PeriodIQ - HỆ THỐNG TỰ ĐỘNG HÓA GIÁO ÁN TẬP LUYỆN THEO CHU KỲ (PERIODIZATION)
+
+1. GIỚI THIỆU CHUNG
+PeriodIQ là một ứng dụng thông minh dành cho người tập gym, giúp tự động thiết kế và quản lý lộ trình tập luyện cá nhân hóa thay vì phải tự mò mẫm hoặc thuê huấn luyện viên đắt đỏ. Ứng dụng tập trung vào việc áp dụng các nguyên tắc khoa học thể thao cốt lõi như: Tăng tiến lũy tiến (Progressive Overload), Quản lý mệt mỏi hệ thần kinh (CNS Fatigue), và Phân kỳ tập luyện (Periodization).
+
+2. CÁC CHỨC NĂNG CHÍNH CỦA HỆ THỐNG
+
+2.1. Quản lý Hồ sơ & Mục tiêu Người dùng
+- Người dùng có thể thiết lập hồ sơ thể chất (cân nặng, giới tính, kinh nghiệm tập luyện).
+- Lựa chọn mục tiêu cụ thể (Tăng sức mạnh - Strength, hay Tăng cơ - Hypertrophy).
+- Cài đặt số ngày có thể ra phòng gym trong tuần để hệ thống tối ưu lịch tập phù hợp nhất.
+
+2.2. Trí tuệ cốt lõi: Tự động hóa Giáo án (Workout Plan Generation)
+- Dựa trên hồ sơ người dùng, hệ thống tự động sinh ra một "Giáo án 4 tuần" (Mesocycle) hoàn chỉnh.
+- Lịch tập được chia đều các nhóm cơ theo nguyên tắc khoa học, tránh việc tập liên tục một nhóm cơ gây quá tải.
+- Tự động gợi ý mức tạ, số hiệp (sets), số lần (reps) và cường độ (RPE) phù hợp cho từng tuần.
+- Tự động thông báo qua Email (hoặc các kênh khác) ngay khi hệ thống xử lý và tạo giáo án thành công.
+
+2.3. Theo dõi & Ghi nhận Buổi tập (Workout Logging)
+- Khi đến phòng gym, người dùng sử dụng ứng dụng để ghi chú lại kết quả thực tế (tập được bao nhiêu cái, mức tạ bao nhiêu, có thất bại/rớt tạ hay không).
+- Đánh giá cảm nhận độ mệt mỏi của toàn buổi tập (Session RPE).
+- Dữ liệu thực tế này sẽ được đối chiếu với giáo án dự kiến để đo lường mức độ tuân thủ.
+
+2.4. Quản lý Quá tải Thần kinh Trung ương (Daily CNS Status)
+- Mỗi ngày, hệ thống sẽ đo lường mức độ stress và mệt mỏi của người tập thông qua các chỉ số (Giấc ngủ, Đau mỏi cơ bắp, Mức năng lượng).
+- Hệ thống sẽ đưa ra cảnh báo hoặc điều chỉnh giảm khối lượng bài tập nếu phát hiện người dùng đang rơi vào trạng thái "Overtraining" (tập luyện quá sức).
+
+2.5. Hệ thống Gamification: Tiến trình, Điểm kinh nghiệm (XP) & Chuỗi ngày (Streak)
+- Kích thích động lực tập luyện bằng việc tặng điểm kinh nghiệm (XP) sau mỗi lần hoàn thành buổi tập.
+- Tính toán "Chuỗi ngày tập luyện" (Current Streak) và ghi nhận "Kỷ lục chuỗi dài nhất" (Longest Streak). Nếu lười biếng bỏ lịch, chuỗi sẽ bị reset.
+
+2.6. Theo dõi Kỷ lục Cá nhân (Personal Record - PR)
+- Ghi nhận và vinh danh các cột mốc sức mạnh (Ví dụ: Đẩy ngực 100kg, Squat 150kg).
+- Lưu lại lịch sử PR để người dùng nhìn thấy sự phát triển của bản thân qua từng tháng, từng năm.
+
+2.7. Quản trị Hệ thống (Admin)
+- Admin có quyền quản lý kho dữ liệu bài tập gốc (Thêm bài tập mới, phân loại nhóm cơ, đánh giá điểm stress của từng bài).
+- Quản lý các bộ quy tắc (Rules) và các mẫu giáo án chuẩn (Templates) để hệ thống tự động lấy ra sử dụng cho người dùng mới.

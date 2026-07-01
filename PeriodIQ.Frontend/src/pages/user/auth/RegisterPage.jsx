@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { resendConfirmationCode, getCognitoErrorMessage } from '../services/authService';
+import { useAuth } from '@/context/AuthContext';
+import { resendConfirmationCode, getCognitoErrorMessage } from '@/services/authService';
 
 export default function RegisterPage() {
   const { register, confirmOtp } = useAuth();

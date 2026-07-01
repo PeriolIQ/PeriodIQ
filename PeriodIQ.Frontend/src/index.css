@@ -132,3 +132,4 @@
     @apply font-sans;
   }
 }
+.cns-gauge-ring { stroke-dasharray: 283; stroke-dashoffset: calc(283 - (283 * 92) / 100); transition: stroke-dashoffset 1s ease-out; }

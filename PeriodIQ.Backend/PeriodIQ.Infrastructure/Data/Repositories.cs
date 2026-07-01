@@ -43,3 +43,8 @@ public class WorkoutSessionLogRepository : DynamoDbRepository<WorkoutSessionLog>
 {
     public WorkoutSessionLogRepository(IDynamoDBContext context) : base(context) { }
 }
+
+public class ProgressRepository : DynamoDbRepository<Progress>, IProgressRepository
+{
+    public ProgressRepository(IDynamoDBContext context) : base(context) { }
+}
