@@ -3,6 +3,9 @@ version: 0.2
 env:
     variables:
         NODE_OPTIONS: "--max-old-space-size=4096"
+        PNPM_HOME: "/root/.pnpm"
+        # Store pnpm's content-addressable store in the source dir so it can be cached
+        PNPM_STORE_DIR: "/codebuild/pnpm-store"
 
 phases:
     install:
@@ -11,28 +14,32 @@ phases:
         commands:
             - echo "=== INSTALL PHASE ==="
             - node --version
-            - npm --version
-            - echo "Cai dat npm packages..."
-            - cd PeriodIQ.Frontend
-            - npm ci
+            - echo "Bat pnpm qua corepack..."
+            - corepack enable
+            - corepack prepare pnpm@latest --activate
+            - pnpm --version
+            - pnpm config set store-dir "$PNPM_STORE_DIR"
+            - echo "Cai dat packages bang pnpm..."
+            - cd "$CODEBUILD_SRC_DIR/PeriodIQ.Frontend"
+            - pnpm install --frozen-lockfile
 
     build:
         commands:
             - echo "=== BUILD PHASE ==="
-            - cd PeriodIQ.Frontend
+            - cd "$CODEBUILD_SRC_DIR/PeriodIQ.Frontend"
             - echo "Chay linter..."
-            - npm run lint || true
+            - pnpm run lint || true
             - echo "Build production..."
-            - npm run build
+            - pnpm run build
             - echo "Build THANH CONG!"
             - echo "kiem tra output..."
             - ls -la dist/
-            - npm audit --audit-level=high
+            - pnpm audit --audit-level high || true
 
     post_build:
         commands:
             - echo "=== POST_BUILD PHASE ==="
-            - cd PeriodIQ.Frontend
+            - cd "$CODEBUILD_SRC_DIR/PeriodIQ.Frontend"
             - aws s3 sync dist/ s3://${FRONTEND_BUCKET_NAME}/ --delete --cache-control "max-age=86400"
             - aws s3 cp dist/index.html s3://${FRONTEND_BUCKET_NAME}/index.html --cache-control "no-cache, no-store, must-revalidate"
             - echo "Upload S3 HOAN TAT!"
@@ -44,4 +51,5 @@ artifacts:
 
 cache:
     paths:
+        - /codebuild/pnpm-store/**/*
         - PeriodIQ.Frontend/node_modules/**/*
