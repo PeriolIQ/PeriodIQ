@@ -8,7 +8,7 @@ namespace PeriodIQ.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = "AdminOnly")]
+[Authorize(Roles = "Admin")]
 public class ExercisesController : ControllerBase
 {
     private readonly ExerciseService _service;
