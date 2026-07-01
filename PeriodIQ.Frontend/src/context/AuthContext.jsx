@@ -12,30 +12,35 @@ import {
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser]               = useState(null);   // { sub, email, name, ... }
-  const [groups, setGroups]           = useState([]);     // Cognito groups, vd ['Admins']
-  const [isAuthenticated, setIsAuth]  = useState(false);
-  const [isLoading, setIsLoading]     = useState(true);   // đang kiểm tra session lúc khởi động
+  const [user, setUser] = useState(null);   // { sub, email, name, ... }
+  const [groups, setGroups] = useState([]);     // Cognito groups, vd ['Admins']
+  const [isAuthenticated, setIsAuth] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);   // đang kiểm tra session lúc khởi động
 
   // ─── Kiểm tra session khi app khởi động ───────────────────────────────────
   useEffect(() => {
     getCurrentSession()
       .then(async (result) => {
         if (result) {
-          const [attrs, userGroups] = await Promise.all([getUserAttributes(), getUserGroups()]);
+          const attrs = await getUserAttributes();
+          const payload = result.session.getIdToken().payload;
+          console.log('=== DEBUG JWT ON LOAD ===', payload);
+          const userGroups = payload['cognito:groups'] || [];
           setUser(attrs);
           setGroups(userGroups);
           setIsAuth(true);
         }
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setIsLoading(false));
   }, []);
 
   // ─── Login ────────────────────────────────────────────────────────────────
   const login = useCallback(async (email, password) => {
-    await cognitoSignIn(email, password);
-    const [attrs, userGroups] = await Promise.all([getUserAttributes(), getUserGroups()]);
+    const { session } = await cognitoSignIn(email, password);
+    const attrs = await getUserAttributes();
+    const payload = session.getIdToken().payload;
+    const userGroups = payload['cognito:groups'] || [];
     setUser(attrs);
     setGroups(userGroups);
     setIsAuth(true);
@@ -60,7 +65,7 @@ export function AuthProvider({ children }) {
     setIsAuth(false);
   }, []);
 
-  const isAdmin = groups.includes('Admins');
+  const isAdmin = groups.includes('Admin');
 
   return (
     <AuthContext.Provider
