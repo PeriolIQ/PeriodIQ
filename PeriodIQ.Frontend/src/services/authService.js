@@ -124,6 +124,22 @@ export function getIdToken() {
 }
 
 /**
+ * Lấy danh sách Cognito Group (vd: "Admins") từ claim "cognito:groups"
+ * trong Id Token. Dùng để phân quyền trang /admin/*.
+ */
+export function getUserGroups() {
+  return new Promise((resolve) => {
+    const user = userPool.getCurrentUser();
+    if (!user) return resolve([]);
+    user.getSession((err, session) => {
+      if (err || !session?.isValid()) return resolve([]);
+      const payload = session.getIdToken().decodePayload();
+      resolve(payload['cognito:groups'] || []);
+    });
+  });
+}
+
+/**
  * Lấy thông tin user attributes (email, name, sub...) từ Cognito.
  */
 export function getUserAttributes() {

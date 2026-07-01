@@ -6,12 +6,14 @@ import {
   confirmSignUp as cognitoConfirmSignUp,
   getCurrentSession,
   getUserAttributes,
+  getUserGroups,
 } from '../services/authService';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser]               = useState(null);   // { sub, email, name, ... }
+  const [groups, setGroups]           = useState([]);     // Cognito groups, vd ['Admins']
   const [isAuthenticated, setIsAuth]  = useState(false);
   const [isLoading, setIsLoading]     = useState(true);   // đang kiểm tra session lúc khởi động
 
@@ -20,8 +22,9 @@ export function AuthProvider({ children }) {
     getCurrentSession()
       .then(async (result) => {
         if (result) {
-          const attrs = await getUserAttributes();
+          const [attrs, userGroups] = await Promise.all([getUserAttributes(), getUserGroups()]);
           setUser(attrs);
+          setGroups(userGroups);
           setIsAuth(true);
         }
       })
@@ -32,8 +35,9 @@ export function AuthProvider({ children }) {
   // ─── Login ────────────────────────────────────────────────────────────────
   const login = useCallback(async (email, password) => {
     await cognitoSignIn(email, password);
-    const attrs = await getUserAttributes();
+    const [attrs, userGroups] = await Promise.all([getUserAttributes(), getUserGroups()]);
     setUser(attrs);
+    setGroups(userGroups);
     setIsAuth(true);
     return attrs;
   }, []);
@@ -52,12 +56,15 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => {
     cognitoSignOut();
     setUser(null);
+    setGroups([]);
     setIsAuth(false);
   }, []);
 
+  const isAdmin = groups.includes('Admins');
+
   return (
     <AuthContext.Provider
-      value={{ user, isAuthenticated, isLoading, login, register, confirmOtp, logout }}
+      value={{ user, groups, isAdmin, isAuthenticated, isLoading, login, register, confirmOtp, logout }}
     >
       {children}
     </AuthContext.Provider>

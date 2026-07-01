@@ -30,7 +30,7 @@ phases:
             - echo "BUILD PHASE"
             - echo "Build solution..."
             - SHORT_SHA=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c1-7)
-            - echo "Version: build-${CODEBUILD_BUILD_NUMBER}-${SHORT_SHA}"
+            - 'echo "Version: build-${CODEBUILD_BUILD_NUMBER}-${SHORT_SHA}"'
             - dotnet build PeriodIQ.Backend/PeriodIQ.sln --configuration Release --no-restore
             - echo "Chay unit tests..."
             - dotnet test PeriodIQ.Backend/PeriodIQ.sln --configuration Release --no-build --logger trx --results-directory ./test-results --collect "XPlat Code Coverage"

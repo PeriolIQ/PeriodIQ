@@ -3,8 +3,8 @@ Description: "PeriodIQ CI/CD Pipeline - CodePipeline + CodeBuild"
 Parameters:
   GitHubRepo:
     Type: String
-    Default: "Elihoang/PeriodIQ"
-    Description: "Github repository owner"
+    Default: "PeriolIQ/PeriodIQ"
+    Description: "Full repository ID (owner/repo)"
   GitHubBranch:
     Type: String
     Default: "main"
@@ -249,7 +249,7 @@ Resources:
 Outputs:
   PipelineName:
     Value: !Ref Pipeline
-    Description: "Ten CodePipeline"
+    Description: "Period IQ CodePipeline"
 
   PipelineUrl:
     Value: !Sub "https://console.aws.amazon.com/codepipeline/home?region=${AWS::Region}#/view/${Pipeline}"

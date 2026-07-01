@@ -1,11 +1,16 @@
-import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import './App.css';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import AdminRoute from './components/auth/AdminRoute';
+import AdminLayout from './components/layout/AdminLayout';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ProfilePage from './pages/ProfilePage';
+import MonitoringPage from './pages/admin/MonitoringPage';
+import DeploysPage from './pages/admin/DeploysPage';
+import DeployDetailPage from './pages/admin/DeployDetailPage';
 
 function Dashboard() {
   return (
@@ -22,7 +27,7 @@ function NotFound() {
 
 // Header hiển thị sau khi đăng nhập
 function AppHeader() {
-  const { user, logout } = useAuth();
+  const { user, isAdmin, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -45,6 +50,11 @@ function AppHeader() {
         <Link to="/workout-plans" className="text-muted-foreground transition-colors hover:text-foreground">
           Giáo Án
         </Link>
+        {isAdmin && (
+          <Link to="/admin" className="text-muted-foreground transition-colors hover:text-foreground">
+            Quản trị
+          </Link>
+        )}
       </nav>
 
       {/* User section */}
@@ -67,10 +77,39 @@ function AppHeader() {
   );
 }
 
+// Placeholder cho các trang admin chưa được nhóm khác triển khai
+// (vd: /admin/rules, /admin/templates, /admin/exercises — phạm vi Người 4).
+function AdminComingSoon() {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border py-16 text-center">
+      <p className="text-lg font-medium">Tính năng đang được xây dựng</p>
+      <p className="text-sm text-muted-foreground">Trang này thuộc phạm vi phụ trách khác trong nhóm.</p>
+    </div>
+  );
+}
+
 function AppLayout() {
   const { isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
+  const isAdminSection = location.pathname.startsWith('/admin');
 
   if (isLoading) return null;
+
+  // Khu vực /admin/* dùng AdminLayout riêng (sidebar + header riêng),
+  // không lồng thêm AppHeader của khu vực user.
+  if (isAdminSection) {
+    return (
+      <Routes>
+        <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
+          <Route index element={<Navigate to="monitoring" replace />} />
+          <Route path="monitoring" element={<MonitoringPage />} />
+          <Route path="deploys" element={<DeploysPage />} />
+          <Route path="deploys/:executionId" element={<DeployDetailPage />} />
+          <Route path="*" element={<AdminComingSoon />} />
+        </Route>
+      </Routes>
+    );
+  }
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-background text-foreground">
