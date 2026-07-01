@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import './App.css';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -11,6 +11,10 @@ import ProfilePage from './pages/ProfilePage';
 import MonitoringPage from './pages/admin/MonitoringPage';
 import DeploysPage from './pages/admin/DeploysPage';
 import DeployDetailPage from './pages/admin/DeployDetailPage';
+import AdminDashboardPage from './pages/admin/AdminDashboardPage';
+import AdminExercisesPage from './pages/admin/AdminExercisesPage';
+import AdminRulesPage from './pages/admin/AdminRulesPage';
+import AdminTemplatesPage from './pages/admin/AdminTemplatesPage';
 import WorkoutPlansPage from './pages/WorkoutPlansPage';
 
 function Dashboard() {
@@ -102,7 +106,10 @@ function AppLayout() {
     return (
       <Routes>
         <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
-          <Route index element={<Navigate to="monitoring" replace />} />
+          <Route index element={<AdminDashboardPage />} />
+          <Route path="rules" element={<AdminRulesPage />} />
+          <Route path="templates" element={<AdminTemplatesPage />} />
+          <Route path="exercises" element={<AdminExercisesPage />} />
           <Route path="monitoring" element={<MonitoringPage />} />
           <Route path="deploys" element={<DeploysPage />} />
           <Route path="deploys/:executionId" element={<DeployDetailPage />} />
