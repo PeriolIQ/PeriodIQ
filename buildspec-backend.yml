@@ -2,7 +2,8 @@ version: 0.2
 
 env:
     variables:
-        DOTNET_ROOT: /root/.dotnet
+        DOTNET_ROOT: /root/dotnet10
+        DOTNET_MULTILEVEL_LOOKUP: "0"
         DOTNET_CLI_TELEMETRY_OPTOUT: "1"
         DOTNET_NOLOGO: "1"
 
@@ -13,8 +14,9 @@ phases:
             - echo "Cai dat .NET 10 SDK..."
             - curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
             - chmod +x /tmp/dotnet-install.sh
-            - /tmp/dotnet-install.sh --channel 10.0 --install-dir /root/.dotnet
+            - /tmp/dotnet-install.sh --channel 10.0 --install-dir /root/dotnet10
             - echo "Kiem tra .NET SDK version..."
+            - $DOTNET_ROOT/dotnet --list-sdks
             - $DOTNET_ROOT/dotnet --version
             - echo "Kiem tra thu muc project..."
             - ls -la PeriodIQ.Backend/

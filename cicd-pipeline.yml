@@ -152,10 +152,10 @@ Resources:
                 - echo "Cai dat .NET 10 SDK..."
                 - curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
                 - chmod +x /tmp/dotnet-install.sh
-                - /tmp/dotnet-install.sh --channel 10.0 --install-dir /root/.dotnet
-                - /root/.dotnet/dotnet --version
+                - /tmp/dotnet-install.sh --channel 10.0 --install-dir /root/dotnet10
+                - /root/dotnet10/dotnet --list-sdks
                 - echo "Cai dat Amazon.Lambda.Tools..."
-                - /root/.dotnet/dotnet tool install --tool-path /root/.dotnet/tools Amazon.Lambda.Tools
+                - /root/dotnet10/dotnet tool install --tool-path /root/dotnet10/tools Amazon.Lambda.Tools
                 - echo "Cai dat SAM CLI..."
                 - pip install aws-sam-cli
                 - sam --version
@@ -163,7 +163,7 @@ Resources:
               commands:
                 # PATH phai set cung dong voi sam (export khong giu qua lenh khac trong CodeBuild)
                 - echo "SAM Build + Deploy..."
-                - export PATH="/root/.dotnet:/root/.dotnet/tools:$PATH"; sam build && sam deploy --no-confirm-changeset --no-fail-on-empty-changeset
+                - export PATH="/root/dotnet10:/root/dotnet10/tools:$PATH"; sam build && sam deploy --no-confirm-changeset --no-fail-on-empty-changeset
             post_build:
               commands:
                 - echo "Deploy Hoan Tat"
@@ -181,7 +181,9 @@ Resources:
         Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
         EnvironmentVariables:
           - Name: DOTNET_ROOT
-            Value: /root/.dotnet
+            Value: /root/dotnet10
+          - Name: DOTNET_MULTILEVEL_LOOKUP
+            Value: "0"
       Artifacts:
         Type: CODEPIPELINE
       TimeoutInMinutes: 20
