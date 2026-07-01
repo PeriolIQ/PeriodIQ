@@ -149,6 +149,8 @@ Resources:
           phases:
             install:
               commands:
+                - echo "Xoa global.json pin SDK 6 do CodeBuild tu tao..."
+                - rm -f /codebuild/global.json
                 - echo "Cai dat .NET 10 SDK..."
                 - curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
                 - chmod +x /tmp/dotnet-install.sh
