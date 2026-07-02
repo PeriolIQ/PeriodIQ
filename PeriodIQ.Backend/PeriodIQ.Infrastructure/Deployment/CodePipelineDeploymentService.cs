@@ -150,17 +150,28 @@ public class CodePipelineDeploymentService : IDeploymentService
         var overallEnd = actions.Count > 0 ? actions.Max(a => a.LastUpdateTime) : (DateTime?)null;
 
         // Ghép mỗi action CodeBuild với stage sở hữu nó để gắn log đúng chỗ.
-        var buildActions = actions
-            .Where(a => string.Equals(a.Input?.ActionTypeId?.Provider, "CodeBuild", StringComparison.OrdinalIgnoreCase))
-            .Select(a => new
-            {
-                Stage = a.StageName,
-                BuildId = a.Output?.ExecutionResult?.ExternalExecutionId,
-            })
-            .Where(x => !string.IsNullOrWhiteSpace(x.BuildId))
-            .ToList();
+        // Khi action ĐANG CHẠY, CodePipeline chưa trả externalExecutionId → tự tìm build đang chạy theo
+        // ProjectName để đọc log realtime (không phải đợi build xong mới thấy log).
+        var buildActions = new List<(string Stage, string BuildId)>();
+        foreach (var a in actions.Where(a =>
+                     string.Equals(a.Input?.ActionTypeId?.Provider, "CodeBuild", StringComparison.OrdinalIgnoreCase)))
+        {
+            var buildId = a.Output?.ExecutionResult?.ExternalExecutionId;
 
-        var buildLogs = await FetchBuildLogsAsync(buildActions.Select(x => x.BuildId!).Distinct().ToList(), ct);
+            if (string.IsNullOrWhiteSpace(buildId)
+                && string.Equals(a.Status?.Value, "InProgress", StringComparison.OrdinalIgnoreCase)
+                && a.Input?.Configuration != null
+                && a.Input.Configuration.TryGetValue("ProjectName", out var projectName)
+                && !string.IsNullOrWhiteSpace(projectName))
+            {
+                buildId = await ResolveRunningBuildIdAsync(projectName, ct);
+            }
+
+            if (!string.IsNullOrWhiteSpace(buildId))
+                buildActions.Add((a.StageName, buildId));
+        }
+
+        var buildLogs = await FetchBuildLogsAsync(buildActions.Select(x => x.BuildId).Distinct().ToList(), ct);
 
         // Gắn log vào từng stage + dựng log tổng hợp (giữ tương thích ngược cho DeployDetail.Logs).
         var combined = new List<string>();
@@ -171,7 +182,7 @@ public class CodePipelineDeploymentService : IDeploymentService
 
             foreach (var ba in stageBuilds)
             {
-                if (!buildLogs.TryGetValue(ba.BuildId!, out var bl)) continue;
+                if (!buildLogs.TryGetValue(ba.BuildId, out var bl)) continue;
 
                 stage.BuildId ??= bl.BuildId;
                 stage.LogGroupName ??= bl.Group;
@@ -217,6 +228,35 @@ public class CodePipelineDeploymentService : IDeploymentService
         {
             _logger.LogWarning(ex, "Không đọc được định nghĩa pipeline '{PipelineName}'.", _pipelineName);
             return new List<string>();
+        }
+    }
+
+    /// <summary>
+    /// Tìm build CodeBuild ĐANG CHẠY của 1 project để đọc log realtime — dùng khi action đang chạy
+    /// nhưng CodePipeline chưa trả externalExecutionId. Trả về build id IN_PROGRESS mới nhất, hoặc null.
+    /// </summary>
+    private async Task<string?> ResolveRunningBuildIdAsync(string projectName, CancellationToken ct)
+    {
+        try
+        {
+            // ListBuildsForProject trả về build mới nhất trước (mặc định sắp xếp giảm dần).
+            var list = await _codeBuild.ListBuildsForProjectAsync(
+                new ListBuildsForProjectRequest { ProjectName = projectName }, ct);
+
+            var ids = list.Ids?.Take(5).ToList();
+            if (ids is null || ids.Count == 0) return null;
+
+            var builds = await _codeBuild.BatchGetBuildsAsync(new BatchGetBuildsRequest { Ids = ids }, ct);
+            return builds.Builds?
+                .Where(b => string.Equals(b.BuildStatus?.Value, "IN_PROGRESS", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(b => b.StartTime)
+                .Select(b => b.Id)
+                .FirstOrDefault();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Không tìm được build đang chạy cho project '{Project}'.", projectName);
+            return null;
         }
     }
 
