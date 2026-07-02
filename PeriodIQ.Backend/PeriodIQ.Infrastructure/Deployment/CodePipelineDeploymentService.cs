@@ -5,6 +5,7 @@ using Amazon.CodeBuild;
 using Amazon.CodeBuild.Model;
 using Amazon.CodePipeline;
 using Amazon.CodePipeline.Model;
+using Microsoft.Extensions.Logging;
 using PeriodIQ.Core.Interfaces.Services;
 using PeriodIQ.Core.Models;
 
@@ -20,6 +21,7 @@ public class CodePipelineDeploymentService : IDeploymentService
     private readonly IAmazonCodePipeline _pipeline;
     private readonly IAmazonCodeBuild _codeBuild;
     private readonly IAmazonCloudWatchLogs _logs;
+    private readonly ILogger<CodePipelineDeploymentService> _logger;
     private readonly string _pipelineName;
 
     // Giới hạn log tránh trả về payload khổng lồ.
@@ -28,11 +30,13 @@ public class CodePipelineDeploymentService : IDeploymentService
     public CodePipelineDeploymentService(
         IAmazonCodePipeline pipeline,
         IAmazonCodeBuild codeBuild,
-        IAmazonCloudWatchLogs logs)
+        IAmazonCloudWatchLogs logs,
+        ILogger<CodePipelineDeploymentService> logger)
     {
         _pipeline = pipeline;
         _codeBuild = codeBuild;
         _logs = logs;
+        _logger = logger;
 
         var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")?.ToLowerInvariant() ?? "dev";
         _pipelineName = Environment.GetEnvironmentVariable("PIPELINE_NAME") ?? $"periodiq-pipeline-{env}";
@@ -40,11 +44,21 @@ public class CodePipelineDeploymentService : IDeploymentService
 
     public async Task<IReadOnlyList<DeploySummary>> GetDeployHistoryAsync(int maxResults = 20, CancellationToken ct = default)
     {
-        var res = await _pipeline.ListPipelineExecutionsAsync(new ListPipelineExecutionsRequest
+        ListPipelineExecutionsResponse res;
+        try
         {
-            PipelineName = _pipelineName,
-            MaxResults = maxResults,
-        }, ct);
+            res = await _pipeline.ListPipelineExecutionsAsync(new ListPipelineExecutionsRequest
+            {
+                PipelineName = _pipelineName,
+                MaxResults = maxResults,
+            }, ct);
+        }
+        catch (PipelineNotFoundException)
+        {
+            // Pipeline chưa được tạo (hoặc PIPELINE_NAME cấu hình sai) — trả rỗng thay vì 500.
+            _logger.LogWarning("CodePipeline '{PipelineName}' không tồn tại; trả về lịch sử deploy rỗng.", _pipelineName);
+            return Array.Empty<DeploySummary>();
+        }
 
         return res.PipelineExecutionSummaries.Select(s =>
         {
@@ -74,6 +88,11 @@ public class CodePipelineDeploymentService : IDeploymentService
         }
         catch (PipelineExecutionNotFoundException)
         {
+            return null;
+        }
+        catch (PipelineNotFoundException)
+        {
+            _logger.LogWarning("CodePipeline '{PipelineName}' không tồn tại; không thể lấy chi tiết deploy.", _pipelineName);
             return null;
         }
 
