@@ -256,6 +256,8 @@ Resources:
             TableName: "WorkoutPlan"
         - DynamoDBCrudPolicy:
             TableName: "WorkoutSessionLog"
+        - DynamoDBCrudPolicy:
+            TableName: "Progress"
         - SQSSendMessagePolicy:
             QueueName: !GetAtt WorkoutProcessingQueue.QueueName
         - CloudWatchLogsFullAccess
@@ -296,7 +298,7 @@ Resources:
       Environment:
         Variables:
           SES_SENDER_EMAIL: !Ref SesSenderEmail
-          WORKOUT_PLAN_TABLE: !Ref WorkoutPlanTable
+          WORKOUT_PLAN_TABLE: "WorkoutPlan"
       Events:
         SqsEvent:
           Type: SQS
@@ -305,7 +307,7 @@ Resources:
             BatchSize: 5
       Policies:
         - DynamoDBReadPolicy:
-            TableName: !Ref WorkoutPlanTable
+            TableName: "WorkoutPlan"
         - SESCrudPolicy:
             IdentityName: !Ref SesSenderEmail
         - SQSPollerPolicy:
@@ -353,23 +355,11 @@ Resources:
 
   # ==========================================================================
   # 7. DYNAMODB - CAC BANG DU LIEU
-  # Cac bang (Exercise, WorkoutTemplate, RuleDefinition, UserProfile,
-  # PersonalRecordHistory, DailyCnsStatus, WorkoutPlan, WorkoutSessionLog)
+  # Tat ca cac bang (Exercise, WorkoutTemplate, RuleDefinition, UserProfile,
+  # PersonalRecordHistory, DailyCnsStatus, WorkoutPlan, WorkoutSessionLog, Progress)
   # KHONG con quan ly boi stack nay - da ton tai san ngoai CloudFormation.
   # Quyen truy cap cap qua DynamoDBCrudPolicy tham chieu ten bang co dinh o tren.
   # ==========================================================================
-
-  ProgressTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: "Progress"
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: Id
-          AttributeType: S
-      KeySchema:
-        - AttributeName: Id
-          KeyType: HASH
 
   # ==========================================================================
   # 8. SQS (Nguoi 3) - hang doi xu ly workout (async)
