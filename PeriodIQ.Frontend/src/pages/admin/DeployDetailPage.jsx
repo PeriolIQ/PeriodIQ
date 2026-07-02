@@ -35,27 +35,36 @@ export default function DeployDetailPage() {
 
   const stages = Array.isArray(deploy?.stages) ? deploy.stages : [];
   const isLive = deploy?.status === 'InProgress';
-  const maxDuration = Math.max(...stages.map((s) => s.durationSeconds || 0), 1);
+
+  // Đồng hồ nhảy mỗi giây khi đang chạy để thời lượng stage + thanh tiến độ cập nhật realtime.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!isLive) return undefined;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [isLive]);
 
   // Trạng thái đóng/mở của từng panel stage (điều khiển từ page để sơ đồ có thể "nhảy tới" stage).
   const [openMap, setOpenMap] = useState({});
   const [activeStage, setActiveStage] = useState(null);
   const inited = useRef(false);
 
-  // Lần đầu có dữ liệu: mở sẵn stage đang chạy, nếu không thì stage cuối có log.
+  // Lần đầu có dữ liệu: tự xổ MỌI stage có log (hoặc đang chạy) — không cần bấm.
   useEffect(() => {
     if (inited.current) return;
     const list = Array.isArray(deploy?.stages) ? deploy.stages : [];
     if (list.length === 0) return;
     inited.current = true;
+    const openInit = {};
+    list.forEach((s) => {
+      if ((s.logs?.length ?? 0) > 0 || s.status === 'InProgress') openInit[s.name] = true;
+    });
+    setOpenMap(openInit);
     const target =
       list.find((s) => s.status === 'InProgress') ||
       [...list].reverse().find((s) => (s.logs?.length ?? 0) > 0) ||
       list[list.length - 1];
-    if (target) {
-      setOpenMap({ [target.name]: true });
-      setActiveStage(target.name);
-    }
+    if (target) setActiveStage(target.name);
   }, [deploy]);
 
   const handleSelect = (name) => {
@@ -115,7 +124,7 @@ export default function DeployDetailPage() {
                 <p className="text-xs text-muted-foreground">Bấm vào một stage để xem build log của stage đó</p>
               </CardHeader>
               <CardContent>
-                <PipelineFlow stages={stages} activeStage={activeStage} onSelect={handleSelect} />
+                <PipelineFlow stages={stages} activeStage={activeStage} onSelect={handleSelect} now={now} />
               </CardContent>
             </Card>
           )}
@@ -155,8 +164,8 @@ export default function DeployDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Build log theo từng stage */}
-          <div className="space-y-3">
+          {/* Build log theo từng stage — cột trung tâm, thu hẹp 2 bên */}
+          <div className="mx-auto w-full max-w-5xl space-y-4">
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-medium text-muted-foreground">Build log theo stage</h3>
             </div>
@@ -165,7 +174,7 @@ export default function DeployDetailPage() {
                 <StageLogPanel
                   key={stage.name}
                   stage={stage}
-                  maxDuration={maxDuration}
+                  now={now}
                   open={!!openMap[stage.name]}
                   onOpenChange={(v) => {
                     setOpenMap((m) => ({ ...m, [stage.name]: v }));

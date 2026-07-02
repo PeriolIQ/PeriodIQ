@@ -118,6 +118,7 @@ public class CodePipelineDeploymentService : IDeploymentService
                 {
                     Name = g.Key,
                     Status = AggregateStatus(g.Select(a => a.Status?.Value)),
+                    StartTime = start,
                     DurationSeconds = ComputeDuration(start, end),
                 };
             })

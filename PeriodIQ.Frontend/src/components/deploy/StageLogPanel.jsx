@@ -6,10 +6,12 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { cn, formatDuration } from '@/lib/utils';
 import { statusMeta } from './statusMeta';
+import { liveDurationSeconds } from './deployTime';
 
 const MIN_FONT = 10;
 const MAX_FONT = 20;
 const clampFont = (n) => Math.min(MAX_FONT, Math.max(MIN_FONT, n));
+const FAIL = ['Failed', 'Stopped', 'Abandoned'];
 
 const slugify = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
@@ -88,10 +90,15 @@ function LogConsole({ logs, font, query, live, follow, setFollow, className }) {
  * Panel log của 1 stage: có thể thu/phóng (collapse + toàn màn hình), zoom cỡ chữ,
  * copy / tải log, lọc theo từ khoá và tự cuộn khi đang chạy (realtime).
  */
-export default function StageLogPanel({ stage, open = true, onOpenChange, maxDuration = 1 }) {
+export default function StageLogPanel({ stage, open = true, onOpenChange, now = Date.now() }) {
   const meta = statusMeta(stage.status);
   const { Icon } = meta;
   const live = stage.status === 'InProgress';
+  const failed = FAIL.includes(stage.status);
+  const done = stage.status === 'Succeeded';
+  const dur = liveDurationSeconds(stage, now);
+  // % là tiến độ của RIÊNG stage: xong = 100%, thất bại = 100% (đỏ), đang chạy = thanh chảy, còn lại = 0%.
+  const barPct = live || done || failed ? 100 : 0;
   const logs = Array.isArray(stage.logs) ? stage.logs : stage.logs ? [String(stage.logs)] : [];
   const hasLogs = logs.length > 0;
 
@@ -189,8 +196,8 @@ export default function StageLogPanel({ stage, open = true, onOpenChange, maxDur
 
   const headerLeft = (
     <>
-      <Icon className={cn('h-4 w-4 shrink-0', meta.iconClass, meta.spin && 'animate-spin')} />
-      <span className="truncate text-sm font-medium">{stage.name}</span>
+      <Icon className={cn('h-5 w-5 shrink-0', meta.iconClass, meta.spin && 'animate-spin')} />
+      <span className="truncate text-[15px] font-semibold">{stage.name}</span>
       <Badge variant={meta.variant}>{meta.label}</Badge>
       {live && (
         <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-500">
@@ -210,7 +217,7 @@ export default function StageLogPanel({ stage, open = true, onOpenChange, maxDur
       <div className="fixed inset-0 z-50 flex flex-col bg-background">
         <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
           <div className="flex min-w-0 items-center gap-2">{headerLeft}</div>
-          <span className="tabular-nums text-xs text-muted-foreground">{formatDuration(stage.durationSeconds)}</span>
+          <span className={cn('tabular-nums text-xs', live ? 'font-medium text-amber-500' : 'text-muted-foreground')}>{formatDuration(dur)}</span>
         </div>
         {toolbar}
         <LogConsole logs={logs} font={font} query={query} live={live} follow={follow} setFollow={setFollow} className="flex-1" />
@@ -219,8 +226,15 @@ export default function StageLogPanel({ stage, open = true, onOpenChange, maxDur
   }
 
   return (
-    <div id={`stage-${slugify(stage.name)}`} className="scroll-mt-24 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-      <div className="flex items-center justify-between gap-2 px-4 py-3">
+    <div
+      id={`stage-${slugify(stage.name)}`}
+      className={cn(
+        'scroll-mt-24 overflow-hidden rounded-2xl border border-border bg-card transition-shadow',
+        'shadow-[0_4px_20px_-4px_rgba(0,0,0,0.10)] hover:shadow-[0_8px_28px_-6px_rgba(0,0,0,0.14)]',
+        open && 'ring-1 ring-ring/10',
+      )}
+    >
+      <div className="flex items-center justify-between gap-2 px-5 py-4">
         <button
           type="button"
           onClick={() => onOpenChange?.(!open)}
@@ -231,23 +245,30 @@ export default function StageLogPanel({ stage, open = true, onOpenChange, maxDur
           {headerLeft}
         </button>
         <div className="flex shrink-0 items-center gap-3">
-          <span className="tabular-nums text-xs text-muted-foreground">{formatDuration(stage.durationSeconds)}</span>
+          <span className={cn('tabular-nums text-xs', live ? 'font-medium text-amber-500' : 'text-muted-foreground')}>{formatDuration(dur)}</span>
         </div>
       </div>
 
-      {/* Thanh thời lượng tương đối giữa các stage */}
-      <div className="h-1 w-full bg-muted">
-        <div
-          className={cn('h-full', meta.dot)}
-          style={{ width: `${Math.max(((stage.durationSeconds || 0) / (maxDuration || 1)) * 100, 2)}%` }}
-        />
+      {/* Thanh tiến độ của riêng stage: xong = 100%, đang chạy = thanh chảy; thụt vào 2 bên cho đỡ sát mép. */}
+      <div className="px-5 pb-3">
+        <div className="h-2 w-full rounded-full bg-muted">
+          <div
+            className={cn(
+              'h-full rounded-full transition-[width] duration-700 ease-out',
+              live && 'pipe-flow',
+              !live && failed && 'bg-gradient-to-r from-red-500 to-red-400',
+              !live && done && 'bg-gradient-to-r from-emerald-500 to-emerald-400',
+            )}
+            style={{ width: `${barPct}%` }}
+          />
+        </div>
       </div>
 
       {open && (
         hasLogs || live ? (
           <>
             {toolbar}
-            <LogConsole logs={logs} font={font} query={query} live={live} follow={follow} setFollow={setFollow} className="max-h-[26rem] min-h-[8rem]" />
+            <LogConsole logs={logs} font={font} query={query} live={live} follow={follow} setFollow={setFollow} className="max-h-[34rem] min-h-[12rem]" />
           </>
         ) : (
           <div className="border-t border-border px-4 py-6 text-center text-sm text-muted-foreground">

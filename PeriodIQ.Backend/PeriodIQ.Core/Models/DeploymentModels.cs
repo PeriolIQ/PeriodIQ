@@ -21,6 +21,9 @@ public class DeployStage
     public string Status { get; set; } = string.Empty;
     public double? DurationSeconds { get; set; }
 
+    /// <summary>Thời điểm stage bắt đầu — để client tính thời lượng realtime khi stage đang chạy.</summary>
+    public DateTime? StartTime { get; set; }
+
     /// <summary>
     /// Build log (CodeBuild -> CloudWatch Logs) của riêng stage này.
     /// Rỗng nếu stage không dùng CodeBuild (vd: Source, Deploy bằng CloudFormation).
