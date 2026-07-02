@@ -40,7 +40,6 @@ Globals:
         ASPNETCORE_ENVIRONMENT: !Ref Environment
 
 Resources:
-
   # ==========================================================================
   # 1. COGNITO (Nguoi 1) - Xac thuc User & Admin
   # ==========================================================================
@@ -73,7 +72,7 @@ Resources:
     Properties:
       ClientName: !Sub "periodiq-spa-client-${Environment}"
       UserPoolId: !Ref PeriodIQUserPool
-      GenerateSecret: false   # SPA frontend khong co secret
+      GenerateSecret: false # SPA frontend khong co secret
       ExplicitAuthFlows:
         - ALLOW_USER_PASSWORD_AUTH
         - ALLOW_REFRESH_TOKEN_AUTH
@@ -141,7 +140,7 @@ Resources:
             Block: {}
           Statement:
             RateBasedStatement:
-              Limit: 2000   # 2000 requests / 5 phut / IP
+              Limit: 2000 # 2000 requests / 5 phut / IP
               AggregateKeyType: IP
           VisibilityConfig:
             SampledRequestsEnabled: true
@@ -187,14 +186,14 @@ Resources:
         DefaultCacheBehavior:
           TargetOriginId: FrontendS3Origin
           ViewerProtocolPolicy: redirect-to-https
-          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6   # Managed-CachingOptimized
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # Managed-CachingOptimized
         CacheBehaviors:
           - PathPattern: "/api/*"
             TargetOriginId: ApiGatewayOrigin
             ViewerProtocolPolicy: https-only
             AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
-            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad   # Managed-CachingDisabled
-            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac   # Managed-AllViewerExceptHostHeader
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad # Managed-CachingDisabled
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac # Managed-AllViewerExceptHostHeader
         CustomErrorResponses:
           # SPA: route khong ton tai van tra ve index.html, de React Router xu ly
           - ErrorCode: 403
@@ -236,7 +235,7 @@ Resources:
             Path: /api/health
             Method: GET
             Auth:
-              Authorizer: NONE   # health check phai public, khong qua JWT
+              Authorizer: NONE # health check phai public, khong qua JWT
       # DynamoDB tables khong con quan ly boi stack nay (tao/quan ly ngoai IaC).
       # Tham chieu bang ten co dinh thay vi !Ref.
       Policies:
@@ -445,7 +444,7 @@ Resources:
     Type: AWS::Logs::MetricFilter
     Properties:
       LogGroupName: !Ref ApiLogGroup
-      FilterPattern: "\"StatusCode: 5\""
+      FilterPattern: '"StatusCode: 5"'
       MetricTransformations:
         - MetricName: "Api5xxErrorCount"
           MetricNamespace: !Sub "PeriodIQ/${Environment}"
@@ -456,7 +455,7 @@ Resources:
     Type: AWS::Logs::MetricFilter
     Properties:
       LogGroupName: !Ref ApiLogGroup
-      FilterPattern: "\"StatusCode: 4\""
+      FilterPattern: '"StatusCode: 4"'
       MetricTransformations:
         - MetricName: "Api4xxErrorCount"
           MetricNamespace: !Sub "PeriodIQ/${Environment}"
