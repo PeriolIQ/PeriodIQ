@@ -275,6 +275,7 @@ Resources:
               Effect: Allow
               Action:
                 - codebuild:BatchGetBuilds
+                - codebuild:ListBuildsForProject
               Resource: "*"
       Tags:
         Project: PeriodIQ
