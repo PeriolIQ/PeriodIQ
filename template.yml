@@ -277,6 +277,15 @@ Resources:
                 - codebuild:BatchGetBuilds
                 - codebuild:ListBuildsForProject
               Resource: "*"
+            # Quyen doc CloudWatch (alarms + metrics + log groups) cho trang Giam sat he thong
+            - Sid: ReadCloudWatchMonitoring
+              Effect: Allow
+              Action:
+                - cloudwatch:DescribeAlarms
+                - cloudwatch:GetMetricData
+                - cloudwatch:ListMetrics
+                - logs:DescribeLogGroups
+              Resource: "*"
       Tags:
         Project: PeriodIQ
         Environment: !Ref Environment
@@ -436,19 +445,28 @@ Resources:
   # ==========================================================================
   # 11. CLOUDWATCH (Nguoi 5) - Log Group, Metric Filter, Alarms
   # ==========================================================================
+  # Log group cho tung Lambda function, retention 14 ngay
   ApiLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub "/aws/lambda/periodiq-api-${Environment}"
-      RetentionInDays: 30
+      RetentionInDays: 14
 
+  WorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/periodiq-worker-${Environment}"
+      RetentionInDays: 14
+
+  # Metric filters - parse log de tao custom metrics
+  # ErrorCount: so loi 5xx
   ApiErrorMetricFilter:
     Type: AWS::Logs::MetricFilter
     Properties:
       LogGroupName: !Ref ApiLogGroup
       FilterPattern: '"StatusCode: 5"'
       MetricTransformations:
-        - MetricName: "Api5xxErrorCount"
+        - MetricName: "ErrorCount"
           MetricNamespace: !Sub "PeriodIQ/${Environment}"
           MetricValue: "1"
           DefaultValue: 0
@@ -464,13 +482,40 @@ Resources:
           MetricValue: "1"
           DefaultValue: 0
 
+  # RuleEngineExecutionTime: thoi gian Rule Engine chay (ms).
+  # App ghi log JSON dang: {"metric":"RuleEngineExecutionTime","valueMs":<so>}
+  RuleEngineExecutionTimeFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref ApiLogGroup
+      FilterPattern: '{ $.metric = "RuleEngineExecutionTime" }'
+      MetricTransformations:
+        - MetricName: "RuleEngineExecutionTime"
+          MetricNamespace: !Sub "PeriodIQ/${Environment}"
+          MetricValue: "$.valueMs"
+          Unit: Milliseconds
+          DefaultValue: 0
+
+  # PlanGenerationCount: so plan duoc tao.
+  # App ghi log JSON dang: {"metric":"PlanGenerationCount"}
+  PlanGenerationCountFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref ApiLogGroup
+      FilterPattern: '{ $.metric = "PlanGenerationCount" }'
+      MetricTransformations:
+        - MetricName: "PlanGenerationCount"
+          MetricNamespace: !Sub "PeriodIQ/${Environment}"
+          MetricValue: "1"
+          DefaultValue: 0
+
   Api5xxAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub "periodiq-api-5xx-errors-${Environment}"
       AlarmDescription: "CANH BAO: API tra ve qua nhieu loi 5xx (>= 5 loi trong 5 phut)"
       Namespace: !Sub "PeriodIQ/${Environment}"
-      MetricName: "Api5xxErrorCount"
+      MetricName: "ErrorCount"
       Statistic: Sum
       Period: 300
       EvaluationPeriods: 1
@@ -480,21 +525,22 @@ Resources:
       AlarmActions:
         - !Ref AlertSnsTopic
 
+  # Lambda Duration > 10 giay (p95) trong 5 phut -> SNS alert
   ApiLatencyAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub "periodiq-api-high-latency-${Environment}"
-      AlarmDescription: "CANH BAO: API response time qua cao (> 10 giay trung binh trong 5 phut)"
+      AlarmDescription: "CANH BAO: API Lambda duration p95 > 10 giay trong 5 phut"
       Namespace: "AWS/Lambda"
       MetricName: "Duration"
       Dimensions:
         - Name: FunctionName
           Value: !Ref PeriodIQApiFunction
-      Statistic: Average
+      ExtendedStatistic: p95
       Period: 300
-      EvaluationPeriods: 2
+      EvaluationPeriods: 1
       Threshold: 10000
-      ComparisonOperator: GreaterThanOrEqualToThreshold
+      ComparisonOperator: GreaterThanThreshold
       TreatMissingData: notBreaching
       AlarmActions:
         - !Ref AlertSnsTopic
@@ -555,6 +601,146 @@ Resources:
       TreatMissingData: notBreaching
       AlarmActions:
         - !Ref AlertSnsTopic
+
+  # Lambda Error Rate > 5% trong 5 phut -> SNS alert (metric math: Errors / Invocations)
+  LambdaErrorRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "periodiq-lambda-error-rate-${Environment}"
+      AlarmDescription: "CANH BAO: Lambda API error rate > 5% trong 5 phut"
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      EvaluationPeriods: 1
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlertSnsTopic
+      Metrics:
+        - Id: errorRate
+          Expression: "100 * errors / invocations"
+          Label: "Error rate (%)"
+          ReturnData: true
+        - Id: errors
+          ReturnData: false
+          MetricStat:
+            Metric:
+              Namespace: "AWS/Lambda"
+              MetricName: "Errors"
+              Dimensions:
+                - Name: FunctionName
+                  Value: !Ref PeriodIQApiFunction
+            Period: 300
+            Stat: Sum
+        - Id: invocations
+          ReturnData: false
+          MetricStat:
+            Metric:
+              Namespace: "AWS/Lambda"
+              MetricName: "Invocations"
+              Dimensions:
+                - Name: FunctionName
+                  Value: !Ref PeriodIQApiFunction
+            Period: 300
+            Stat: Sum
+
+  # DynamoDB ThrottledRequests > 0 -> SNS alert (bang chinh WorkoutPlan)
+  DynamoThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "periodiq-dynamodb-throttled-${Environment}"
+      AlarmDescription: "CANH BAO: DynamoDB co request bi throttle (WorkoutPlan)"
+      Namespace: "AWS/DynamoDB"
+      MetricName: "ThrottledRequests"
+      Dimensions:
+        - Name: TableName
+          Value: "WorkoutPlan"
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlertSnsTopic
+
+  # Lambda ConcurrentExecutions > 80% gioi han (mac dinh 1000 -> 800) -> SNS alert
+  LambdaConcurrencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "periodiq-lambda-concurrency-${Environment}"
+      AlarmDescription: "CANH BAO: Lambda ConcurrentExecutions > 80% gioi han (800/1000)"
+      Namespace: "AWS/Lambda"
+      MetricName: "ConcurrentExecutions"
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref PeriodIQApiFunction
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 800
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlertSnsTopic
+
+  # Dashboard tong hop: Lambda / DynamoDB / API Gateway
+  MonitoringDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub "periodiq-${Environment}"
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric", "x": 0, "y": 0, "width": 12, "height": 6,
+              "properties": {
+                "title": "Lambda invocations & errors",
+                "region": "${AWS::Region}", "view": "timeSeries", "stacked": false, "period": 300,
+                "metrics": [
+                  [ "AWS/Lambda", "Invocations", "FunctionName", "periodiq-api-${Environment}", { "stat": "Sum", "label": "API invocations" } ],
+                  [ "AWS/Lambda", "Errors", "FunctionName", "periodiq-api-${Environment}", { "stat": "Sum", "label": "API errors" } ],
+                  [ "AWS/Lambda", "Invocations", "FunctionName", "periodiq-worker-${Environment}", { "stat": "Sum", "label": "Worker invocations" } ],
+                  [ "AWS/Lambda", "Errors", "FunctionName", "periodiq-worker-${Environment}", { "stat": "Sum", "label": "Worker errors" } ]
+                ]
+              }
+            },
+            {
+              "type": "metric", "x": 12, "y": 0, "width": 12, "height": 6,
+              "properties": {
+                "title": "Lambda duration (avg / p95)",
+                "region": "${AWS::Region}", "view": "timeSeries", "period": 300,
+                "metrics": [
+                  [ "AWS/Lambda", "Duration", "FunctionName", "periodiq-api-${Environment}", { "stat": "Average", "label": "API avg (ms)" } ],
+                  [ "AWS/Lambda", "Duration", "FunctionName", "periodiq-api-${Environment}", { "stat": "p95", "label": "API p95 (ms)" } ]
+                ]
+              }
+            },
+            {
+              "type": "metric", "x": 0, "y": 6, "width": 12, "height": 6,
+              "properties": {
+                "title": "DynamoDB WorkoutPlan capacity & throttles",
+                "region": "${AWS::Region}", "view": "timeSeries", "period": 300,
+                "metrics": [
+                  [ "AWS/DynamoDB", "ConsumedReadCapacityUnits", "TableName", "WorkoutPlan", { "stat": "Sum", "label": "Read capacity" } ],
+                  [ "AWS/DynamoDB", "ConsumedWriteCapacityUnits", "TableName", "WorkoutPlan", { "stat": "Sum", "label": "Write capacity" } ],
+                  [ "AWS/DynamoDB", "ThrottledRequests", "TableName", "WorkoutPlan", { "stat": "Sum", "label": "Throttled" } ]
+                ]
+              }
+            },
+            {
+              "type": "metric", "x": 12, "y": 6, "width": 12, "height": 6,
+              "properties": {
+                "title": "API Gateway requests / latency / errors",
+                "region": "${AWS::Region}", "view": "timeSeries", "period": 300,
+                "metrics": [
+                  [ "AWS/ApiGateway", "Count", "ApiId", "${PeriodIQHttpApi}", { "stat": "Sum", "label": "Requests" } ],
+                  [ "AWS/ApiGateway", "4xx", "ApiId", "${PeriodIQHttpApi}", { "stat": "Sum", "label": "4xx" } ],
+                  [ "AWS/ApiGateway", "5xx", "ApiId", "${PeriodIQHttpApi}", { "stat": "Sum", "label": "5xx" } ],
+                  [ "AWS/ApiGateway", "Latency", "ApiId", "${PeriodIQHttpApi}", { "stat": "Average", "label": "Latency (ms)", "yAxis": "right" } ]
+                ]
+              }
+            }
+          ]
+        }
 
 Outputs:
   ApiUrl:

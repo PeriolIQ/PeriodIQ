@@ -126,6 +126,8 @@ builder.Services.AddSingleton<IAmazonCodeBuild>(
     new AmazonCodeBuildClient(new AmazonCodeBuildConfig { RegionEndpoint = awsRegionEndpoint }));
 builder.Services.AddSingleton<IAmazonCloudWatchLogs>(
     new AmazonCloudWatchLogsClient(new AmazonCloudWatchLogsConfig { RegionEndpoint = awsRegionEndpoint }));
+builder.Services.AddSingleton<Amazon.CloudWatch.IAmazonCloudWatch>(
+    new Amazon.CloudWatch.AmazonCloudWatchClient(new Amazon.CloudWatch.AmazonCloudWatchConfig { RegionEndpoint = awsRegionEndpoint }));
 
 builder.Services.AddScoped<IExerciseRepository, ExerciseRepository>();
 builder.Services.AddScoped<IWorkoutTemplateRepository, WorkoutTemplateRepository>();
@@ -140,6 +142,7 @@ builder.Services.AddScoped<IProgressRepository, ProgressRepository>();
 
 builder.Services.AddScoped<IMessageQueueService, SqsMessageQueueService>();
 builder.Services.AddScoped<IDeploymentService, PeriodIQ.Infrastructure.Deployment.CodePipelineDeploymentService>();
+builder.Services.AddScoped<IMonitoringService, PeriodIQ.Infrastructure.Monitoring.CloudWatchMonitoringService>();
 
 builder.Services.AddScoped<RuleEngineService>();
 builder.Services.AddScoped<WorkoutPlanService>();
