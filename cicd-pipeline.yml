@@ -105,13 +105,12 @@ Resources:
                   - "codestar-connections:UseConnection"
                   - "iam:PassRole"
                 Resource: "*"
-
   # CodeBuild Project - Backend (.NET)
   BackendBuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
       Name: !Sub "periodiq-backend-build-${Environment}"
-      Description: "Build PeriodIQ Backend (.NET 9)"
+      Description: "Build PeriodIQ Backend (.NET 10)"
       ServiceRole: !GetAtt CodeBuildServiceRole.Arn
       Source:
         Type: CODEPIPELINE
