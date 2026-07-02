@@ -128,14 +128,45 @@ public class CodePipelineDeploymentService : IDeploymentService
         var overallStart = actions.Count > 0 ? actions.Min(a => a.StartTime) : (DateTime?)null;
         var overallEnd = actions.Count > 0 ? actions.Max(a => a.LastUpdateTime) : (DateTime?)null;
 
-        var buildIds = actions
+        // Ghép mỗi action CodeBuild với stage sở hữu nó để gắn log đúng chỗ.
+        var buildActions = actions
             .Where(a => string.Equals(a.Input?.ActionTypeId?.Provider, "CodeBuild", StringComparison.OrdinalIgnoreCase))
-            .Select(a => a.Output?.ExecutionResult?.ExternalExecutionId)
-            .Where(id => !string.IsNullOrWhiteSpace(id))
-            .Distinct()
+            .Select(a => new
+            {
+                Stage = a.StageName,
+                BuildId = a.Output?.ExecutionResult?.ExternalExecutionId,
+            })
+            .Where(x => !string.IsNullOrWhiteSpace(x.BuildId))
             .ToList();
 
-        var logs = await FetchBuildLogsAsync(buildIds!, ct);
+        var buildLogs = await FetchBuildLogsAsync(buildActions.Select(x => x.BuildId!).Distinct().ToList(), ct);
+
+        // Gắn log vào từng stage + dựng log tổng hợp (giữ tương thích ngược cho DeployDetail.Logs).
+        var combined = new List<string>();
+        foreach (var stage in stages)
+        {
+            var stageBuilds = buildActions.Where(x => x.Stage == stage.Name).ToList();
+            var multipleBuilds = stageBuilds.Count > 1;
+
+            foreach (var ba in stageBuilds)
+            {
+                if (!buildLogs.TryGetValue(ba.BuildId!, out var bl)) continue;
+
+                stage.BuildId ??= bl.BuildId;
+                stage.LogGroupName ??= bl.Group;
+                stage.LogStreamName ??= bl.Stream;
+
+                if (multipleBuilds)
+                    stage.Logs.Add($"===== {bl.ProjectName ?? bl.BuildId} =====");
+                stage.Logs.AddRange(bl.Lines);
+            }
+
+            if (stage.Logs.Count > 0)
+            {
+                combined.Add($"===== {stage.Name} =====");
+                combined.AddRange(stage.Logs);
+            }
+        }
 
         return new DeployDetail
         {
@@ -146,27 +177,43 @@ public class CodePipelineDeploymentService : IDeploymentService
             CommitId = artifact?.RevisionId,
             CommitMessage = artifact?.RevisionSummary is { } summ ? ExtractCommitMessage(summ) : null,
             Stages = stages,
-            Logs = logs,
+            Logs = combined,
         };
     }
 
-    /// <summary>Gom log của các build CodeBuild (mỗi build lấy N event cuối) qua CloudWatch Logs.</summary>
-    private async Task<List<string>> FetchBuildLogsAsync(List<string> buildIds, CancellationToken ct)
-    {
-        var lines = new List<string>();
-        if (buildIds.Count == 0) return lines;
+    /// <summary>Log của 1 build CodeBuild kèm metadata log stream (để tail realtime phía client nếu cần).</summary>
+    private sealed record BuildLog(string BuildId, string? ProjectName, string? Group, string? Stream, List<string> Lines);
 
+    /// <summary>
+    /// Đọc log của từng build CodeBuild (mỗi build lấy N event cuối) qua CloudWatch Logs,
+    /// trả về map buildId -> log để gắn đúng vào stage sở hữu.
+    /// </summary>
+    private async Task<Dictionary<string, BuildLog>> FetchBuildLogsAsync(List<string> buildIds, CancellationToken ct)
+    {
+        var result = new Dictionary<string, BuildLog>(StringComparer.Ordinal);
+        if (buildIds.Count == 0) return result;
+
+        List<Build> builds;
         try
         {
-            var builds = await _codeBuild.BatchGetBuildsAsync(new BatchGetBuildsRequest { Ids = buildIds }, ct);
-            foreach (var build in builds.Builds ?? new List<Build>())
-            {
-                var group = build.Logs?.GroupName;
-                var stream = build.Logs?.StreamName;
-                if (string.IsNullOrWhiteSpace(group) || string.IsNullOrWhiteSpace(stream))
-                    continue;
+            var res = await _codeBuild.BatchGetBuildsAsync(new BatchGetBuildsRequest { Ids = buildIds }, ct);
+            builds = res.Builds ?? new List<Build>();
+        }
+        catch (Exception ex)
+        {
+            // Không đọc được builds — các stage sẽ hiển thị "không có log" thay vì làm hỏng cả request.
+            _logger.LogWarning(ex, "Không đọc được build log từ CodeBuild cho execution.");
+            return result;
+        }
 
-                lines.Add($"===== {build.ProjectName ?? build.Id} =====");
+        foreach (var build in builds)
+        {
+            var lines = new List<string>();
+            var group = build.Logs?.GroupName;
+            var stream = build.Logs?.StreamName;
+
+            if (!string.IsNullOrWhiteSpace(group) && !string.IsNullOrWhiteSpace(stream))
+            {
                 try
                 {
                     var events = await _logs.GetLogEventsAsync(new GetLogEventsRequest
@@ -184,13 +231,11 @@ public class CodePipelineDeploymentService : IDeploymentService
                     lines.Add($"[Không đọc được log stream: {ex.Message}]");
                 }
             }
-        }
-        catch (Exception ex)
-        {
-            lines.Add($"[Không đọc được build log: {ex.Message}]");
+
+            result[build.Id] = new BuildLog(build.Id, build.ProjectName, group, stream, lines);
         }
 
-        return lines;
+        return result;
     }
 
     private static double? ComputeDuration(DateTime? start, DateTime? end)

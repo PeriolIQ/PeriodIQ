@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -5,29 +6,86 @@ import { ArrowLeft, RefreshCw } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import PipelineFlow from '@/components/deploy/PipelineFlow';
+import StageLogPanel from '@/components/deploy/StageLogPanel';
 import { getDeployDetail, getStatusVariant, STATUS_LABEL } from '@/services/deployService';
 import { formatDuration } from '@/lib/utils';
+
+const slugify = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 export default function DeployDetailPage() {
   const { executionId } = useParams();
   const navigate = useNavigate();
 
-  const { data: deploy, isLoading, isError, error, refetch, isFetching } = useQuery({
+  const {
+    data: deploy,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isFetching,
+    dataUpdatedAt,
+  } = useQuery({
     queryKey: ['deploy', executionId],
     queryFn: () => getDeployDetail(executionId),
+    // Realtime: khi pipeline đang chạy, tự lấy lại chi tiết (gồm build log) mỗi 3s; dừng khi kết thúc.
+    refetchInterval: (query) => (query.state.data?.status === 'InProgress' ? 3000 : false),
+    refetchIntervalInBackground: false,
   });
+
+  const stages = Array.isArray(deploy?.stages) ? deploy.stages : [];
+  const isLive = deploy?.status === 'InProgress';
+  const maxDuration = Math.max(...stages.map((s) => s.durationSeconds || 0), 1);
+
+  // Trạng thái đóng/mở của từng panel stage (điều khiển từ page để sơ đồ có thể "nhảy tới" stage).
+  const [openMap, setOpenMap] = useState({});
+  const [activeStage, setActiveStage] = useState(null);
+  const inited = useRef(false);
+
+  // Lần đầu có dữ liệu: mở sẵn stage đang chạy, nếu không thì stage cuối có log.
+  useEffect(() => {
+    if (inited.current) return;
+    const list = Array.isArray(deploy?.stages) ? deploy.stages : [];
+    if (list.length === 0) return;
+    inited.current = true;
+    const target =
+      list.find((s) => s.status === 'InProgress') ||
+      [...list].reverse().find((s) => (s.logs?.length ?? 0) > 0) ||
+      list[list.length - 1];
+    if (target) {
+      setOpenMap({ [target.name]: true });
+      setActiveStage(target.name);
+    }
+  }, [deploy]);
+
+  const handleSelect = (name) => {
+    setOpenMap((m) => ({ ...m, [name]: true }));
+    setActiveStage(name);
+    // Chờ panel mở rồi cuộn tới.
+    requestAnimationFrame(() => {
+      document.getElementById(`stage-${slugify(name)}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate('/admin/deploys')}>
           <ArrowLeft className="h-3.5 w-3.5" />
           Quay lại danh sách
         </Button>
-        <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
-          <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
-          Làm mới
-        </Button>
+        <div className="flex items-center gap-3">
+          {!isLoading && !isError && (
+            <span className="hidden text-xs text-muted-foreground sm:inline">
+              {isLive ? 'Đang cập nhật realtime · ' : ''}
+              Cập nhật lúc {dayjs(dataUpdatedAt).format('HH:mm:ss')}
+            </span>
+          )}
+          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+            Làm mới
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -38,6 +96,31 @@ export default function DeployDetailPage() {
         </p>
       ) : (
         <>
+          {/* Sơ đồ cây các stage — ở đầu trang */}
+          {stages.length > 0 && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between gap-3">
+                  <CardTitle>Sơ đồ pipeline</CardTitle>
+                  {isLive && (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-500">
+                      <span className="relative flex h-2 w-2">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-500/70" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
+                      </span>
+                      LIVE
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">Bấm vào một stage để xem build log của stage đó</p>
+              </CardHeader>
+              <CardContent>
+                <PipelineFlow stages={stages} activeStage={activeStage} onSelect={handleSelect} />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Thông tin chung */}
           <Card>
             <CardHeader>
               <CardTitle>Thông tin lần deploy</CardTitle>
@@ -72,56 +155,28 @@ export default function DeployDetailPage() {
             </CardContent>
           </Card>
 
-          {Array.isArray(deploy.stages) && deploy.stages.length > 0 && (() => {
-            const maxStage = Math.max(...deploy.stages.map((s) => s.durationSeconds || 0), 1);
-            const stageColor = (status) =>
-              status === 'Succeeded' ? 'bg-emerald-500'
-                : status === 'Failed' || status === 'Stopped' ? 'bg-red-500'
-                : status === 'InProgress' ? 'bg-amber-500'
-                : 'bg-muted-foreground';
-            return (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Các stage</CardTitle>
-                  <p className="text-xs text-muted-foreground">Độ dài thanh thể hiện thời lượng tương đối giữa các stage</p>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {deploy.stages.map((stage) => (
-                    <div key={stage.name} className="rounded-lg border border-border px-4 py-3 text-sm">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">{stage.name}</span>
-                        <div className="flex items-center gap-3">
-                          <span className="tabular-nums text-muted-foreground">{formatDuration(stage.durationSeconds)}</span>
-                          <Badge variant={getStatusVariant(stage.status)}>{STATUS_LABEL[stage.status] || stage.status}</Badge>
-                        </div>
-                      </div>
-                      <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
-                        <div
-                          className={`h-full rounded-full ${stageColor(stage.status)}`}
-                          style={{ width: `${Math.max(((stage.durationSeconds || 0) / maxStage) * 100, 2)}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            );
-          })()}
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Build log (CodeBuild)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {deploy.logs?.length ? (
-                <pre className="max-h-[28rem] overflow-auto rounded-lg bg-zinc-950 p-4 text-xs leading-relaxed text-zinc-100">
-                  {(Array.isArray(deploy.logs) ? deploy.logs.join('\n') : deploy.logs)}
-                </pre>
-              ) : (
-                <p className="text-sm text-muted-foreground">Không có log để hiển thị.</p>
-              )}
-            </CardContent>
-          </Card>
+          {/* Build log theo từng stage */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-medium text-muted-foreground">Build log theo stage</h3>
+            </div>
+            {stages.length > 0 ? (
+              stages.map((stage) => (
+                <StageLogPanel
+                  key={stage.name}
+                  stage={stage}
+                  maxDuration={maxDuration}
+                  open={!!openMap[stage.name]}
+                  onOpenChange={(v) => {
+                    setOpenMap((m) => ({ ...m, [stage.name]: v }));
+                    if (v) setActiveStage(stage.name);
+                  }}
+                />
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">Không có stage nào để hiển thị.</p>
+            )}
+          </div>
         </>
       )}
     </div>
