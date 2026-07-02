@@ -11,6 +11,9 @@
     <PublishReadyToRun>true</PublishReadyToRun>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
     <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <!-- provided.al2023 KHONG co ICU -> phai bat invariant globalization,
+         neu khong Serilog/CultureInfo se throw lam Lambda crash o init (Runtime.ExitError). -->
+    <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
   <ItemGroup>
