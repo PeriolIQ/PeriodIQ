@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -60,5 +61,68 @@ public class AdminStatsController : ControllerBase
             ActiveWorkoutPlans   = planList.Count(p => p.Status == "Active"),
             TotalSessionLogs     = logs.Count(),
         });
+    }
+
+    [HttpGet("popular-exercises")]
+    public async Task<IActionResult> GetPopularExercises()
+    {
+        var plans = await _plans.GetAllAsync();
+
+        var top10 = plans
+            .SelectMany(p => p.Weeks)
+            .SelectMany(w => w.Days)
+            .SelectMany(d => d.Exercises)
+            .GroupBy(e => new { e.ExerciseId, e.ExerciseName })
+            .Select(g => new
+            {
+                ExerciseId   = g.Key.ExerciseId,
+                ExerciseName = g.Key.ExerciseName,
+                UsageCount   = g.Count(),
+            })
+            .OrderByDescending(x => x.UsageCount)
+            .Take(10)
+            .ToList();
+
+        return Ok(top10);
+    }
+
+    [HttpGet("user-activity")]
+    public async Task<IActionResult> GetUserActivity()
+    {
+        var logs = (await _logs.GetAllAsync()).ToList();
+
+        var byWeek = logs
+            .GroupBy(l => new
+            {
+                Year = ISOWeek.GetYear(l.CompletedAt),
+                Week = ISOWeek.GetWeekOfYear(l.CompletedAt),
+            })
+            .OrderByDescending(g => g.Key.Year).ThenByDescending(g => g.Key.Week)
+            .Take(8)
+            .Select(g => new
+            {
+                Year          = g.Key.Year,
+                Week          = g.Key.Week,
+                ActiveUsers   = g.Select(l => l.UserId).Distinct().Count(),
+                TotalSessions = g.Count(),
+            })
+            .OrderBy(x => x.Year).ThenBy(x => x.Week)
+            .ToList();
+
+        var byMonth = logs
+            .GroupBy(l => new { l.CompletedAt.Year, l.CompletedAt.Month })
+            .OrderByDescending(g => g.Key.Year).ThenByDescending(g => g.Key.Month)
+            .Take(6)
+            .Select(g => new
+            {
+                Year          = g.Key.Year,
+                Month         = g.Key.Month,
+                ActiveUsers   = g.Select(l => l.UserId).Distinct().Count(),
+                TotalSessions = g.Count(),
+            })
+            .OrderBy(x => x.Year).ThenBy(x => x.Month)
+            .ToList();
+
+        return Ok(new { ByWeek = byWeek, ByMonth = byMonth });
     }
 }
