@@ -19,6 +19,9 @@ using PeriodIQ.Core.Interfaces.Services;
 using PeriodIQ.Core.Services;
 using PeriodIQ.Infrastructure.Data;
 using PeriodIQ.Infrastructure.Messaging;
+using PeriodIQ.Api.HostedServices;
+using PeriodIQ.Api.Handlers;
+using Amazon.SimpleEmail;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Debug()
@@ -106,7 +109,7 @@ var dynamoDbClient = credentials != null
     ? new AmazonDynamoDBClient(credentials, new AmazonDynamoDBConfig { RegionEndpoint = regionEndpoint })
     : new AmazonDynamoDBClient(new AmazonDynamoDBConfig { RegionEndpoint = regionEndpoint });
 
-var sqsRegionEndpoint = Amazon.RegionEndpoint.APSoutheast2;
+var sqsRegionEndpoint = regionEndpoint;
 
 var sqsClient = credentials != null
     ? new Amazon.SQS.AmazonSQSClient(credentials, new Amazon.SQS.AmazonSQSConfig { RegionEndpoint = sqsRegionEndpoint })
@@ -154,6 +157,11 @@ builder.Services.AddScoped<PersonalRecordHistoryService>();
 builder.Services.AddScoped<DailyCnsStatusService>();
 builder.Services.AddScoped<RuleDefinitionService>();
 builder.Services.AddScoped<WorkoutSessionLogService>();
+
+// ─── AWS & Background Services ──────────────────────────────────────────────
+builder.Services.AddSingleton<IAmazonSimpleEmailService>(new AmazonSimpleEmailServiceClient());
+builder.Services.AddScoped<SqsHandler>();
+builder.Services.AddHostedService<SqsWorkerBackgroundService>();
 
 // ─── Swagger / Scalar ─────────────────────────────────────────────────────
 builder.Services.AddEndpointsApiExplorer();

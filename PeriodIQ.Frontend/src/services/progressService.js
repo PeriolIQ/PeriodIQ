@@ -16,6 +16,14 @@ const progressService = {
   updateNotificationSettings: async (enabled) => {
     const response = await api.put('/api/Progress/settings/notifications', { enabled });
     return response.data;
+  },
+
+  /**
+   * Lấy lịch sử kỷ lục cá nhân
+   */
+  getPersonalRecords: async () => {
+    const response = await api.get('/api/personalrecordhistories/my-prs');
+    return response.data;
   }
 };
 

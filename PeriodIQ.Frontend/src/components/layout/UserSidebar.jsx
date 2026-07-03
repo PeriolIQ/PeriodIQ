@@ -26,19 +26,24 @@ export default function UserSidebar({ open, onClose }) {
       {open && <button aria-label="Đóng menu" className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={onClose} />}
       <aside className={cn('fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-border bg-card transition-transform md:static md:translate-x-0', open ? 'translate-x-0' : '-translate-x-full')}>
         
-        {/* Profile Header */}
-        <div className="flex h-24 items-center gap-3 border-b border-border px-5">
+        {/* Profile Header - click to go to profile */}
+        <NavLink to="/profile" onClick={onClose}
+          className={({ isActive }) =>
+            `flex h-24 items-center gap-3 border-b border-border px-5 transition-colors hover:bg-muted cursor-pointer ${isActive ? 'bg-lime-400/10' : ''}`
+          }
+        >
           <div className="h-12 w-12 shrink-0 rounded-full bg-muted border-2 border-lime-400 flex items-center justify-center text-lg font-bold overflow-hidden">
              {(user?.name || user?.email || 'U')[0].toUpperCase()}
           </div>
-          <div className="flex flex-col">
+          <div className="flex flex-col flex-1 min-w-0">
             <span className="text-base font-bold text-lime-600 dark:text-lime-400">Elite Performer</span>
             <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Level 42 Athlete</span>
           </div>
-          <button className="md:hidden ml-auto" onClick={onClose} aria-label="Đóng menu">
+          <button className="md:hidden ml-auto" onClick={(e) => { e.preventDefault(); onClose(); }} aria-label="Đóng menu">
             <X className="h-5 w-5 text-muted-foreground" />
           </button>
-        </div>
+        </NavLink>
+
 
         <nav className="flex-1 space-y-1 overflow-y-auto p-4">
           {NAV_ITEMS.map(({ to, label, icon: Icon, end }) => (

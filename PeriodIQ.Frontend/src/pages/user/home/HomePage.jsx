@@ -7,6 +7,7 @@ import CurrentMesocycleCard from './components/CurrentMesocycleCard';
 import NextSessionCard from './components/NextSessionCard';
 import WeeklyIntensityChart from './components/WeeklyIntensityChart';
 import RecentPrsCard from './components/RecentPrsCard';
+import WeightProgressionChart from './components/WeightProgressionChart';
 
 export default function HomePage() {
   const [progress, setProgress] = useState(null);
@@ -54,6 +55,7 @@ export default function HomePage() {
         <CnsStatusCard />
         <CurrentMesocycleCard />
         <NextSessionCard />
+        <WeightProgressionChart />
         <WeeklyIntensityChart />
         <RecentPrsCard />
       </div>
