@@ -51,7 +51,7 @@ public class UserProfilesController : ControllerBase
         var profile = new UserProfile
         {
             Id                  = userId,
-            Email               = email,
+            Email               = !string.IsNullOrWhiteSpace(dto.Email) ? dto.Email : email,
             FullName            = dto.FullName,
             Gender              = dto.Gender,
             BodyWeightKg        = dto.BodyWeightKg,
@@ -74,6 +74,7 @@ public class UserProfilesController : ControllerBase
         if (existing == null) return NotFound(new { message = "Chưa có hồ sơ. Dùng POST /me để tạo mới." });
 
         existing.FullName            = dto.FullName;
+        if (!string.IsNullOrWhiteSpace(dto.Email)) existing.Email = dto.Email;
         existing.Gender              = dto.Gender;
         existing.BodyWeightKg        = dto.BodyWeightKg;
         existing.FitnessLevel        = dto.FitnessLevel;
@@ -109,6 +110,7 @@ public class UserProfilesController : ControllerBase
 public class UserProfileDto
 {
     public string FullName { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
     public string Gender { get; set; } = string.Empty;
     public decimal BodyWeightKg { get; set; }
     public string FitnessLevel { get; set; } = string.Empty;  // Beginner, Intermediate, Advanced

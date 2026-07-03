@@ -19,6 +19,7 @@ import AdminTemplatesPage from './pages/admin/AdminTemplatesPage';
 import WorkoutPlansPage from './pages/user/workout-plans/WorkoutPlansPage';
 import HomePage from './pages/user/home/HomePage';
 import LogWorkout from './pages/user/log-workout/LogWorkout';
+import LiveWorkoutPage from './pages/user/log-workout/LiveWorkoutPage';
 import Settings from './pages/user/settings/Settings';
 
 function NotFound() {
@@ -72,6 +73,7 @@ function AppLayout() {
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/workout-plans" element={<WorkoutPlansPage />} />
         <Route path="/log-workout" element={<LogWorkout />} />
+        <Route path="/live-workout" element={<LiveWorkoutPage />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
 

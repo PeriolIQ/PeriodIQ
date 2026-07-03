@@ -11,7 +11,7 @@
 
 @theme inline {
   --font-heading: var(--font-sans);
-  --font-sans: 'Geist Variable', sans-serif;
+  --font-sans: "Cabin", sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -50,6 +50,68 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Live Workout Theme Extensions */
+  --color-secondary-container: #84cc16;
+  --color-surface-container-high: #ffffff;
+  --color-surface-container-low: #ffffff;
+  --color-on-primary-fixed-variant: #3f4758;
+  --color-on-secondary-container: #ffffff;
+  --color-on-tertiary-fixed: #3b0900;
+  --color-on-primary-container: #767d90;
+  --color-surface-variant: #e2e8f0;
+  --color-surface-container: #f8fafc;
+  --color-error-container: #93000a;
+  --color-on-secondary-fixed-variant: #3a4d00;
+  --color-on-primary-fixed: #141c2b;
+  --color-inverse-primary: #575e70;
+  --color-outline: #94a3b8;
+  --color-inverse-on-surface: #213145;
+  --color-error: #ef4444;
+  --color-surface-tint: #bfc6db;
+  --color-on-error-container: #ffdad6;
+  --color-surface-bright: #ffffff;
+  --color-on-tertiary: #5f1500;
+  --color-secondary-fixed: #bef500;
+  --color-on-secondary-fixed: #151f00;
+  --color-on-error: #690005;
+  --color-on-secondary: #273500;
+  --color-tertiary-fixed: #ffdbd1;
+  --color-outline-variant: #cbd5e1;
+  --color-surface-container-highest: #f1f5f9;
+  --color-on-tertiary-fixed-variant: #862200;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface: #ffffff;
+  --color-inverse-surface: #d3e4fe;
+  --color-on-primary: #ffffff;
+  --color-on-tertiary-container: #e3440c;
+  --color-surface-dim: #f8fafc;
+  --color-on-surface: #0f172a;
+  --color-tertiary-container: #2a0500;
+  --color-secondary-fixed-dim: #65a30d;
+  --color-primary-container: #0a1221;
+  --color-primary-fixed: #dbe2f8;
+  --color-primary-fixed-dim: #bfc6db;
+  --color-on-surface-variant: #475569;
+  --color-tertiary-fixed-dim: #ffb5a0;
+  --color-tertiary: #ffb5a0;
+  --color-on-background: #0f172a;
+
+  --spacing-md: 24px;
+  --spacing-sm: 16px;
+  --spacing-base: 4px;
+  --spacing-gutter: 16px;
+  --spacing-margin-desktop: 48px;
+  --spacing-lg: 40px;
+  --spacing-xl: 64px;
+  --spacing-xs: 8px;
+  --spacing-margin-mobile: 20px;
+
+  --font-display-lg: "Cabin", sans-serif;
+  --font-headline-lg: "Cabin", sans-serif;
+  --font-headline-lg-mobile: "Cabin", sans-serif;
+  --font-data-label: "Cabin", sans-serif;
+  --font-body-md: "Cabin", sans-serif;
 }
 
 :root {
