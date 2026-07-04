@@ -69,6 +69,9 @@ Resources:
                   - "sns:*"
                   - "iam:*"
                   - "logs:*"
+                  # wafv2 + cloudfront: deploy WAF WebACL (us-east-1) va gan vao CloudFront
+                  - "wafv2:*"
+                  - "cloudfront:*"
                 Resource: "*"
               # Quyen tao & ghi test report (buildspec-backend.yml co muc reports:)
               - Effect: Allow
@@ -172,9 +175,26 @@ Resources:
                 - sam --version
             build:
               commands:
-                # PATH phai set cung dong voi sam (export khong giu qua lenh khac trong CodeBuild)
-                - echo "SAM Build + Deploy..."
-                - export PATH="/root/dotnet10:/root/dotnet10/tools:$PATH"; sam build && sam deploy --no-confirm-changeset --no-fail-on-empty-changeset
+                # Chay ca block trong 1 lenh: bien moi truong (PATH, WAF_ARN) khong giu qua nhieu lenh trong CodeBuild
+                - |
+                  export PATH="/root/dotnet10:/root/dotnet10/tools:$PATH"
+                  echo "1) Deploy WAF WebACL (scope CLOUDFRONT) o us-east-1..."
+                  sam deploy -t waf-cloudfront.yml \
+                    --stack-name periodiq-waf-cloudfront-dev \
+                    --region us-east-1 --resolve-s3 \
+                    --capabilities CAPABILITY_IAM \
+                    --no-confirm-changeset --no-fail-on-empty-changeset \
+                    --parameter-overrides Environment=dev
+                  echo "2) Lay WAF ARN tu stack us-east-1..."
+                  WAF_ARN=$(aws cloudformation describe-stacks \
+                    --stack-name periodiq-waf-cloudfront-dev --region us-east-1 \
+                    --query "Stacks[0].Outputs[?OutputKey=='WebAclArn'].OutputValue" \
+                    --output text)
+                  echo "WAF ARN = $WAF_ARN"
+                  echo "3) SAM build + deploy stack chinh (ap-southeast-1) kem WAF ARN..."
+                  sam build
+                  sam deploy --no-confirm-changeset --no-fail-on-empty-changeset \
+                    --parameter-overrides Environment=dev AlertEmail=syvan.claude@outlook.com WafWebAclArn=$WAF_ARN
             post_build:
               commands:
                 - echo "Deploy Hoan Tat"

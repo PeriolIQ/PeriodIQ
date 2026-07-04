@@ -452,11 +452,23 @@ Frontend dev server chạy tại `http://localhost:5173`.
 
 2. Tạo 8 bảng DynamoDB — xem hướng dẫn chi tiết tại [DynamoDB_Schema_Setup_Guide.md](PeriodIQ.Backend/docs/DynamoDB_Schema_Setup_Guide.md)
 
-3. Deploy bằng SAM:
+3. Deploy WAF cho CloudFront **trước** (scope `CLOUDFRONT` bắt buộc ở `us-east-1`):
+   ```bash
+   sam deploy -t waf-cloudfront.yml \
+     --stack-name periodiq-waf-cloudfront-dev \
+     --region us-east-1 --resolve-s3 --capabilities CAPABILITY_IAM \
+     --parameter-overrides Environment=dev
+   # Lấy ARN ở Output "WebAclArn"
+   ```
+
+4. Deploy stack chính (`ap-southeast-1`), truyền WAF ARN vào:
    ```bash
    sam build
-   sam deploy --guided
+   sam deploy --guided \
+     --parameter-overrides WafWebAclArn=<WebAclArn-tu-buoc-3>
    ```
+   > 💡 Để trống `WafWebAclArn` nếu muốn deploy nhanh không cần WAF — CloudFront vẫn chạy bình thường.
+   > `Export/ImportValue` không dùng được cross-region nên phải truyền ARN qua `--parameter-overrides`.
 
 ---
 

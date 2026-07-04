@@ -28,6 +28,13 @@ Parameters:
     Default: "noreply@periodiq.example.com"
     Description: "Email gui giao an / nhac lich tap qua SES (phai verify truoc khi dung that)"
 
+  WafWebAclArn:
+    Type: String
+    Default: ""
+    Description: >
+      ARN cua WAF WebACL scope CLOUDFRONT (deploy tu waf-cloudfront.yml o us-east-1).
+      De trong "" khi chua co WAF -> CloudFront chay khong co WAF.
+
 Globals:
   Function:
     Timeout: 30
@@ -94,65 +101,11 @@ Resources:
       Description: "Nhom User thuong - nguoi tap gym"
 
   # ==========================================================================
-  # 2. AWS WAF (Nguoi 1) - Chan SQL Injection, XSS, bot, rate limit
-  # LUU Y: Scope REGIONAL de tao duoc o ap-southeast-1 (CLOUDFRONT bat buoc us-east-1).
-  # REGIONAL WebACL khong gan vao CloudFront duoc -> gan vao Cognito User Pool (xem WebAclAssociation).
+  # 2. AWS WAF (Nguoi 1) - Chan SQL Injection, XSS, bot, rate limit ngay o edge.
+  # WebACL scope CLOUDFRONT BAT BUOC deploy o us-east-1 -> tach ra file rieng
+  # waf-cloudfront.yml. ARN cua no duoc truyen vao qua Parameter WafWebAclArn
+  # va gan vao CloudFront distribution ben duoi (WebACLId).
   # ==========================================================================
-  PeriodIQWebAcl:
-    Type: AWS::WAFv2::WebACL
-    Properties:
-      Name: !Sub "periodiq-waf-${Environment}"
-      Scope: REGIONAL
-      DefaultAction:
-        Allow: {}
-      VisibilityConfig:
-        SampledRequestsEnabled: true
-        CloudWatchMetricsEnabled: true
-        MetricName: !Sub "periodiq-waf-${Environment}"
-      Rules:
-        - Name: AWSManagedRulesCommonRuleSet
-          Priority: 1
-          OverrideAction:
-            None: {}
-          Statement:
-            ManagedRuleGroupStatement:
-              VendorName: AWS
-              Name: AWSManagedRulesCommonRuleSet
-          VisibilityConfig:
-            SampledRequestsEnabled: true
-            CloudWatchMetricsEnabled: true
-            MetricName: CommonRuleSetMetric
-        - Name: AWSManagedRulesBotControlRuleSet
-          Priority: 2
-          OverrideAction:
-            None: {}
-          Statement:
-            ManagedRuleGroupStatement:
-              VendorName: AWS
-              Name: AWSManagedRulesBotControlRuleSet
-          VisibilityConfig:
-            SampledRequestsEnabled: true
-            CloudWatchMetricsEnabled: true
-            MetricName: BotControlMetric
-        - Name: RateLimitRule
-          Priority: 3
-          Action:
-            Block: {}
-          Statement:
-            RateBasedStatement:
-              Limit: 2000 # 2000 requests / 5 phut / IP
-              AggregateKeyType: IP
-          VisibilityConfig:
-            SampledRequestsEnabled: true
-            CloudWatchMetricsEnabled: true
-            MetricName: RateLimitMetric
-
-  # Gan WAF REGIONAL vao Cognito User Pool (tai nguyen regional o ap-southeast-1)
-  PeriodIQWebAclAssociation:
-    Type: AWS::WAFv2::WebACLAssociation
-    Properties:
-      ResourceArn: !GetAtt PeriodIQUserPool.Arn
-      WebACLArn: !GetAtt PeriodIQWebAcl.Arn
 
   # ==========================================================================
   # 3. CLOUDFRONT (Nguoi 1) - CDN + dinh tuyen /api -> API Gateway
@@ -172,7 +125,9 @@ Resources:
       DistributionConfig:
         Enabled: true
         DefaultRootObject: index.html
-        # WAF chuyen sang REGIONAL gan vao Cognito -> khong gan vao CloudFront nua
+        # Gan WAF WebACL (scope CLOUDFRONT, tu waf-cloudfront.yml o us-east-1).
+        # De trong "" thi CloudFront chay khong co WAF.
+        WebACLId: !Ref WafWebAclArn
         Origins:
           - Id: FrontendS3Origin
             DomainName: !GetAtt FrontendBucket.RegionalDomainName
@@ -764,8 +719,8 @@ Outputs:
     Value: !Ref PeriodIQUserPoolClient
 
   WafWebAclArn:
-    Description: "WAF WebACL ARN gan vao CloudFront"
-    Value: !GetAtt PeriodIQWebAcl.Arn
+    Description: "WAF WebACL ARN (CLOUDFRONT) dang gan vao CloudFront distribution"
+    Value: !Ref WafWebAclArn
 
   SqsQueueUrl:
     Description: "SQS Queue URL cho workout processing"
