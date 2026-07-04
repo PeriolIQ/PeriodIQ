@@ -30,10 +30,31 @@ public class CloudWatchMonitoringService : IMonitoringService
         _cw = cw;
         _logs = logs;
         _logger = logger;
-        _env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")?.ToLowerInvariant() ?? "dev";
+        _env = ResolveEnvironment(config);
         _region = config["AWS:Region"]
             ?? Environment.GetEnvironmentVariable("AWS_REGION")
             ?? "ap-southeast-1";
+    }
+
+    /// <summary>
+    /// Xác định environment AWS (dev/staging/production) khớp tên tài nguyên periodiq-*-{env}.
+    /// ASPNETCORE_ENVIRONMENT khi chạy local là "Development" -> phải map về "dev" cho khớp CloudFormation.
+    /// Ưu tiên override qua env PERIODIQ_ENV hoặc config AWS:Environment.
+    /// </summary>
+    private static string ResolveEnvironment(IConfiguration config)
+    {
+        var raw = (Environment.GetEnvironmentVariable("PERIODIQ_ENV")
+                   ?? config["AWS:Environment"]
+                   ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+                   ?? "dev").ToLowerInvariant();
+
+        return raw switch
+        {
+            "development" or "develop" or "dev" => "dev",
+            "production" or "prod" => "production",
+            "staging" or "stage" => "staging",
+            _ => raw,
+        };
     }
 
     public async Task<MonitoringOverview> GetOverviewAsync(CancellationToken ct = default)
