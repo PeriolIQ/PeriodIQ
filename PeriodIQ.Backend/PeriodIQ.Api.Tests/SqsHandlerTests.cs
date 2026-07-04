@@ -4,6 +4,7 @@ using Amazon.SimpleEmail;
 using Amazon.SimpleEmail.Model;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DataModel;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
 using PeriodIQ.Api.Handlers;
@@ -18,6 +19,17 @@ namespace PeriodIQ.Api.Tests
 {
     public class SqsHandlerTests
     {
+        private static IConfiguration BuildConfiguration()
+        {
+            return new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["AWS:Region"] = "ap-southeast-1"
+                })
+                .Build();
+        }
+
+
         [Fact]
         public async Task ProcessMessageAsync_WhenValidEventAndUserExists_SendsEmail()
         {
@@ -28,10 +40,10 @@ namespace PeriodIQ.Api.Tests
             var mockContext = new Mock<ILambdaContext>();
             mockContext.Setup(c => c.Logger).Returns(new TestLambdaLogger());
 
-            var handler = new SqsHandler(mockSesClient.Object, mockDynamoContext.Object);
+            var handler = new SqsHandler(mockSesClient.Object, mockDynamoContext.Object, BuildConfiguration());
 
             var userId = "test-user-id";
-            var userProfile = new UserProfile 
+            var userProfile = new UserProfile
             { 
                 Id = userId, 
                 Email = "test@example.com", 
@@ -85,13 +97,13 @@ namespace PeriodIQ.Api.Tests
             var mockContext = new Mock<ILambdaContext>();
             mockContext.Setup(c => c.Logger).Returns(new TestLambdaLogger());
 
-            var handler = new SqsHandler(mockSesClient.Object, mockDynamoContext.Object);
+            var handler = new SqsHandler(mockSesClient.Object, mockDynamoContext.Object, BuildConfiguration());
 
             var userId = "test-user-id";
-            
+
             // Return null for user
             mockDynamoContext.Setup(d => d.LoadAsync<UserProfile>(userId, default))
-                             .ReturnsAsync((UserProfile)null);
+                             .ReturnsAsync((UserProfile?)null);
 
             var eventData = new WorkoutPlanEvent
             {
