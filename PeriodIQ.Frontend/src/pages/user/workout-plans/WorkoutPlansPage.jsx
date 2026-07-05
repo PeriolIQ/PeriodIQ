@@ -1,18 +1,46 @@
-import { useMemo, useState } from 'react';
-import { generateWorkoutPlan } from '@/services/workoutPlanService';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Activity,
+  CalendarDays,
+  Dumbbell,
+  Loader2,
+  RefreshCw,
+  ShieldAlert,
+  Sparkles,
+  Target,
+  TrendingUp,
+} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import {
+  generateWorkoutPlan,
+  getMyWorkoutPlans,
+} from '@/services/workoutPlanService';
 
 const EQUIPMENT = ['Barbell', 'Dumbbell', 'Machine', 'Bodyweight'];
+
 const LIMITATIONS = [
   { value: 'lower_back_fatigue', label: 'Mỏi lưng dưới' },
   { value: 'shoulder_pain', label: 'Đau vai' },
   { value: 'knee_pain', label: 'Đau gối' },
 ];
 
+const GOALS = [
+  { value: 'Hypertrophy', label: 'Hypertrophy' },
+  { value: 'Strength', label: 'Strength' },
+  { value: 'Endurance', label: 'Endurance' },
+  { value: 'Fat Loss', label: 'Fat Loss' },
+];
+
+const LEVELS = ['Beginner', 'Intermediate', 'Advanced'];
+
 const initialForm = {
   templateId: '',
   goal: 'Hypertrophy',
   fitnessLevel: 'Intermediate',
   daysPerWeek: 4,
+  startDate: new Date().toISOString().slice(0, 10),
   mainLifts: {
     squat: 100,
     bench: 80,
@@ -23,27 +51,118 @@ const initialForm = {
   equipment: EQUIPMENT,
 };
 
+function readValue(source, ...keys) {
+  for (const key of keys) {
+    if (source?.[key] !== undefined && source?.[key] !== null) {
+      return source[key];
+    }
+  }
+
+  return undefined;
+}
+
+function getPlanId(plan) {
+  return readValue(plan, 'id', 'Id') ?? '';
+}
+
+function getWeeks(plan) {
+  return readValue(plan, 'weeks', 'Weeks') ?? [];
+}
+
+function getDays(week) {
+  return readValue(week, 'days', 'Days') ?? [];
+}
+
+function getExercises(day) {
+  return readValue(day, 'exercises', 'Exercises') ?? [];
+}
+
+function formatDate(value) {
+  if (!value) return 'Chưa có';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Chưa có';
+
+  return new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date);
+}
+
+function formatKg(value) {
+  const number = Number(value ?? 0);
+  if (number <= 0) return 'BW';
+  return `${number.toLocaleString('vi-VN', { maximumFractionDigits: 1 })} kg`;
+}
+
+function sortPlans(plans) {
+  return [...plans].sort((a, b) => {
+    const aTime = new Date(readValue(a, 'generatedAt', 'GeneratedAt', 'startDate', 'StartDate') ?? 0).getTime();
+    const bTime = new Date(readValue(b, 'generatedAt', 'GeneratedAt', 'startDate', 'StartDate') ?? 0).getTime();
+    return bTime - aTime;
+  });
+}
+
 export default function WorkoutPlansPage() {
   const [form, setForm] = useState(initialForm);
-  const [plan, setPlan] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [plans, setPlans] = useState([]);
+  const [activePlan, setActivePlan] = useState(null);
+  const [isLoadingPlans, setIsLoadingPlans] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  const activeWeeks = getWeeks(activePlan);
 
   const planSummary = useMemo(() => {
-    if (!plan?.weeks?.length) return null;
-    const days = plan.weeks.reduce((total, week) => total + (week.days?.length ?? 0), 0);
-    const exercises = plan.weeks.reduce(
-      (total, week) => total + (week.days ?? []).reduce((dayTotal, day) => dayTotal + (day.exercises?.length ?? 0), 0),
+    if (!activePlan || activeWeeks.length === 0) {
+      return {
+        weeks: 0,
+        days: 0,
+        exercises: 0,
+        volume: 0,
+      };
+    }
+
+    const days = activeWeeks.reduce((total, week) => total + getDays(week).length, 0);
+    const exercises = activeWeeks.reduce(
+      (total, week) => total + getDays(week).reduce((dayTotal, day) => dayTotal + getExercises(day).length, 0),
+      0
+    );
+    const volume = activeWeeks.reduce(
+      (total, week) => total + Number(readValue(week, 'plannedTotalVolume', 'PlannedTotalVolume') ?? 0),
       0
     );
 
     return {
-      weeks: plan.weeks.length,
+      weeks: activeWeeks.length,
       days,
       exercises,
-      totalVolume: Math.round(plan.weeks.reduce((total, week) => total + Number(week.plannedTotalVolume ?? 0), 0)),
+      volume: Math.round(volume),
     };
-  }, [plan]);
+  }, [activePlan, activeWeeks]);
+
+  const activePlanId = getPlanId(activePlan);
+
+  useEffect(() => {
+    loadPlans();
+  }, []);
+
+  async function loadPlans() {
+    setIsLoadingPlans(true);
+    setError('');
+
+    try {
+      const data = await getMyWorkoutPlans();
+      const sorted = sortPlans(Array.isArray(data) ? data : []);
+      setPlans(sorted);
+      setActivePlan((current) => current ?? sorted[0] ?? null);
+    } catch (err) {
+      setError(err.response?.data?.message || err.response?.data?.Message || err.message || 'Không tải được danh sách giáo án.');
+    } finally {
+      setIsLoadingPlans(false);
+    }
+  }
 
   const updateField = (field) => (event) => {
     const value = field === 'daysPerWeek' ? Number(event.target.value) : event.target.value;
@@ -72,223 +191,443 @@ export default function WorkoutPlansPage() {
     });
   };
 
-  const handleSubmit = async (event) => {
+  async function handleSubmit(event) {
     event.preventDefault();
     setError('');
-    setIsSubmitting(true);
+    setNotice('');
+    setIsGenerating(true);
 
     try {
       const payload = {
-        ...form,
         templateId: form.templateId.trim(),
+        goal: form.goal,
+        fitnessLevel: form.fitnessLevel,
         daysPerWeek: Number(form.daysPerWeek),
+        startDate: form.startDate ? new Date(form.startDate).toISOString() : null,
+        equipment: form.equipment,
+        limitations: form.limitations,
         mainLifts: Object.fromEntries(
           Object.entries(form.mainLifts).map(([key, value]) => [key, Number(value) || 0])
         ),
       };
       const generatedPlan = await generateWorkoutPlan(payload);
-      setPlan(generatedPlan);
+      const generatedId = getPlanId(generatedPlan);
+
+      setActivePlan(generatedPlan);
+      setPlans((current) => {
+        const filtered = generatedId
+          ? current.filter((plan) => getPlanId(plan) !== generatedId)
+          : current;
+        return sortPlans([generatedPlan, ...filtered]);
+      });
+      setNotice('Rule Engine đã sinh giáo án mới gồm volume, CNS conflict và progression.');
     } catch (err) {
       setError(err.response?.data?.message || err.response?.data?.Message || err.message || 'Không thể tạo giáo án.');
     } finally {
-      setIsSubmitting(false);
+      setIsGenerating(false);
     }
+  }
+
+  return (
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 pb-12">
+      <PageHeader onRefresh={loadPlans} isRefreshing={isLoadingPlans} />
+
+      {error && (
+        <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-600 dark:text-red-400">
+          {error}
+        </div>
+      )}
+      {notice && (
+        <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm font-medium text-emerald-700 dark:text-emerald-300">
+          {notice}
+        </div>
+      )}
+
+      <section className="grid gap-4 md:grid-cols-4">
+        <Metric icon={CalendarDays} label="Số tuần" value={planSummary.weeks || '-'} tone="lime" />
+        <Metric icon={Activity} label="Buổi tập" value={planSummary.days || '-'} tone="sky" />
+        <Metric icon={Dumbbell} label="Bài tập" value={planSummary.exercises || '-'} tone="violet" />
+        <Metric icon={TrendingUp} label="Volume dự kiến" value={planSummary.volume ? planSummary.volume.toLocaleString('vi-VN') : '-'} tone="amber" />
+      </section>
+
+      <div className="grid items-start gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
+        <GeneratePlanForm
+          form={form}
+          isGenerating={isGenerating}
+          onSubmit={handleSubmit}
+          updateField={updateField}
+          updateLift={updateLift}
+          toggleArrayField={toggleArrayField}
+        />
+
+        <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+          <PlanList
+            plans={plans}
+            activePlanId={activePlanId}
+            isLoading={isLoadingPlans}
+            onSelect={setActivePlan}
+          />
+          <PlanPreview plan={activePlan} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PageHeader({ onRefresh, isRefreshing }) {
+  return (
+    <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
+      <div>
+        <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-lime-500/20 bg-lime-500/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-lime-700 dark:text-lime-300">
+          <Sparkles className="h-3.5 w-3.5" />
+          Rule Engine
+        </div>
+        <h1 className="text-3xl font-black tracking-tight text-foreground md:text-4xl">Giáo án chu kỳ 4 tuần</h1>
+        <p className="mt-2 max-w-2xl text-sm font-medium text-muted-foreground">
+          Tạo giáo án theo Volume Filter, CNS Conflict Resolution và Progression Builder. Kết quả có tuần deload, set/rep và mức tạ mục tiêu.
+        </p>
+      </div>
+      <Button variant="outline" className="h-10 w-fit gap-2" onClick={onRefresh} disabled={isRefreshing}>
+        {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+        Làm mới
+      </Button>
+    </div>
+  );
+}
+
+function Metric({ icon: Icon, label, value, tone }) {
+  const tones = {
+    lime: 'bg-lime-500/10 text-lime-700 dark:text-lime-300',
+    sky: 'bg-sky-500/10 text-sky-700 dark:text-sky-300',
+    violet: 'bg-violet-500/10 text-violet-700 dark:text-violet-300',
+    amber: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
   };
 
   return (
-    <div className="plans-page">
-      <div className="plans-header">
+    <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="plans-eyebrow">Rule Engine</p>
-          <h1>Giáo án chu kỳ 4 tuần</h1>
-          <p>Nhập thông số tập luyện để hệ thống tự tính volume, conflict CNS và progression.</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{label}</p>
+          <p className="mt-2 text-2xl font-black">{value}</p>
+        </div>
+        <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${tones[tone]}`}>
+          <Icon className="h-5 w-5" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GeneratePlanForm({ form, isGenerating, onSubmit, updateField, updateLift, toggleArrayField }) {
+  return (
+    <Card className="p-5">
+      <form onSubmit={onSubmit} className="space-y-6">
+        <div>
+          <h2 className="text-lg font-black">Tạo giáo án</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Nhập thông số chính để Lambda Rule Engine tính plan mới.</p>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Mục tiêu">
+            <select className="h-10 rounded-lg border border-input bg-background px-3 text-sm" value={form.goal} onChange={updateField('goal')}>
+              {GOALS.map((goal) => (
+                <option key={goal.value} value={goal.value}>{goal.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Trình độ">
+            <select className="h-10 rounded-lg border border-input bg-background px-3 text-sm" value={form.fitnessLevel} onChange={updateField('fitnessLevel')}>
+              {LEVELS.map((level) => (
+                <option key={level} value={level}>{level}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Buổi mỗi tuần">
+            <select className="h-10 rounded-lg border border-input bg-background px-3 text-sm" value={form.daysPerWeek} onChange={updateField('daysPerWeek')}>
+              {[2, 3, 4, 5, 6].map((day) => (
+                <option key={day} value={day}>{day} buổi</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Ngày bắt đầu">
+            <input className="h-10 rounded-lg border border-input bg-background px-3 text-sm" type="date" value={form.startDate} onChange={updateField('startDate')} />
+          </Field>
+          <Field label="Template ID" className="sm:col-span-2">
+            <input className="h-10 rounded-lg border border-input bg-background px-3 text-sm" value={form.templateId} onChange={updateField('templateId')} placeholder="Bỏ trống để dùng default blueprint" />
+          </Field>
+        </div>
+
+        <div className="space-y-3">
+          <SectionTitle icon={Target} title="1RM hiện tại" />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <LiftInput id="squat" label="Squat" value={form.mainLifts.squat} onChange={updateLift('squat')} />
+            <LiftInput id="bench" label="Bench Press" value={form.mainLifts.bench} onChange={updateLift('bench')} />
+            <LiftInput id="deadlift" label="Deadlift" value={form.mainLifts.deadlift} onChange={updateLift('deadlift')} />
+            <LiftInput id="overheadPress" label="Overhead Press" value={form.mainLifts.overheadPress} onChange={updateLift('overheadPress')} />
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <SectionTitle icon={ShieldAlert} title="Hạn chế cơ thể" />
+          <div className="flex flex-wrap gap-2">
+            {LIMITATIONS.map((item) => (
+              <ToggleChip
+                key={item.value}
+                active={form.limitations.includes(item.value)}
+                label={item.label}
+                onClick={() => toggleArrayField('limitations', item.value)}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <SectionTitle icon={Dumbbell} title="Thiết bị có sẵn" />
+          <div className="flex flex-wrap gap-2">
+            {EQUIPMENT.map((item) => (
+              <ToggleChip
+                key={item}
+                active={form.equipment.includes(item)}
+                label={item}
+                onClick={() => toggleArrayField('equipment', item)}
+              />
+            ))}
+          </div>
+        </div>
+
+        <Button className="h-11 w-full gap-2 bg-lime-400 font-black uppercase tracking-wide text-black hover:bg-lime-500" type="submit" disabled={isGenerating}>
+          {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          {isGenerating ? 'Đang sinh giáo án' : 'Tạo giáo án 4 tuần'}
+        </Button>
+      </form>
+    </Card>
+  );
+}
+
+function PlanList({ plans, activePlanId, isLoading, onSelect }) {
+  return (
+    <Card className="p-4">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-black">Plan của tôi</h2>
+          <p className="text-xs text-muted-foreground">Danh sách lấy từ API</p>
+        </div>
+        <Badge variant="neutral">{plans.length}</Badge>
+      </div>
+
+      {isLoading ? (
+        <div className="flex min-h-40 items-center justify-center text-sm text-muted-foreground">
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          Đang tải
+        </div>
+      ) : plans.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+          Chưa có giáo án. Hãy tạo plan đầu tiên bằng form bên trái.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {plans.map((plan) => {
+            const id = getPlanId(plan);
+            const isActive = id && id === activePlanId;
+            return (
+              <button
+                key={id || `${readValue(plan, 'startDate', 'StartDate')}-${readValue(plan, 'goal', 'Goal')}`}
+                type="button"
+                onClick={() => onSelect(plan)}
+                className={`w-full rounded-lg border p-3 text-left transition-colors ${
+                  isActive
+                    ? 'border-lime-500/50 bg-lime-500/10'
+                    : 'border-border hover:bg-muted'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold">{readValue(plan, 'goal', 'Goal') || 'Workout Plan'}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{formatDate(readValue(plan, 'startDate', 'StartDate'))}</p>
+                  </div>
+                  <Badge variant={readValue(plan, 'status', 'Status') === 'Active' ? 'success' : 'neutral'}>
+                    {readValue(plan, 'status', 'Status') || 'Plan'}
+                  </Badge>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function PlanPreview({ plan }) {
+  if (!plan) {
+    return (
+      <Card className="flex min-h-[520px] items-center justify-center p-8 text-center">
+        <div className="max-w-sm">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-lime-500/10 text-lime-600 dark:text-lime-300">
+            <CalendarDays className="h-6 w-6" />
+          </div>
+          <h2 className="text-xl font-black">Chưa chọn giáo án</h2>
+          <p className="mt-2 text-sm text-muted-foreground">Tạo giáo án mới hoặc chọn một plan trong danh sách để xem chi tiết 4 tuần.</p>
+        </div>
+      </Card>
+    );
+  }
+
+  const weeks = getWeeks(plan);
+
+  return (
+    <Card className="p-5">
+      <div className="flex flex-col justify-between gap-4 border-b border-border pb-5 lg:flex-row lg:items-start">
+        <div>
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <Badge variant="success" dot>{readValue(plan, 'status', 'Status') || 'Active'}</Badge>
+            <Badge variant="info">{readValue(plan, 'fitnessLevel', 'FitnessLevel') || 'Intermediate'}</Badge>
+          </div>
+          <h2 className="text-2xl font-black">{readValue(plan, 'goal', 'Goal') || 'Giáo án'} Mesocycle</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {formatDate(readValue(plan, 'startDate', 'StartDate'))} - {formatDate(readValue(plan, 'endDate', 'EndDate'))}
+          </p>
+        </div>
+        <div className="rounded-lg border border-border px-4 py-3 text-sm">
+          <p className="font-bold">Rule Engine Output</p>
+          <p className="mt-1 text-muted-foreground">Volume &gt; CNS &gt; Progression</p>
         </div>
       </div>
 
-      <div className="plans-layout">
-        <form className="plans-form" onSubmit={handleSubmit}>
-          <section>
-            <h2>Thông số chính</h2>
-            <div className="plans-grid">
-              <label className="plans-field">
-                <span>Mục tiêu</span>
-                <select value={form.goal} onChange={updateField('goal')}>
-                  <option value="Hypertrophy">Hypertrophy</option>
-                  <option value="Strength">Strength</option>
-                  <option value="Endurance">Endurance</option>
-                  <option value="Fat Loss">Fat Loss</option>
-                </select>
-              </label>
+      <div className="mt-5 space-y-5">
+        {weeks.map((week) => (
+          <WeekBlock key={readValue(week, 'weekNumber', 'WeekNumber')} week={week} />
+        ))}
+      </div>
+    </Card>
+  );
+}
 
-              <label className="plans-field">
-                <span>Trình độ</span>
-                <select value={form.fitnessLevel} onChange={updateField('fitnessLevel')}>
-                  <option value="Beginner">Beginner</option>
-                  <option value="Intermediate">Intermediate</option>
-                  <option value="Advanced">Advanced</option>
-                </select>
-              </label>
+function WeekBlock({ week }) {
+  const weekNumber = readValue(week, 'weekNumber', 'WeekNumber');
+  const focus = readValue(week, 'focus', 'Focus');
+  const isDeload = String(focus ?? '').toLowerCase().includes('deload');
 
-              <label className="plans-field">
-                <span>Số buổi mỗi tuần</span>
-                <select value={form.daysPerWeek} onChange={updateField('daysPerWeek')}>
-                  {[2, 3, 4, 5, 6].map((day) => (
-                    <option key={day} value={day}>{day}</option>
-                  ))}
-                </select>
-              </label>
+  return (
+    <section className="rounded-lg border border-border">
+      <div className="flex flex-col justify-between gap-3 border-b border-border p-4 md:flex-row md:items-center">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-base font-black">Tuần {weekNumber}: {focus}</h3>
+            {isDeload && <Badge variant="warning">Deload</Badge>}
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">{readValue(week, 'progressionRule', 'ProgressionRule')}</p>
+        </div>
+        <div className="flex gap-2 text-xs font-bold text-muted-foreground">
+          <span className="rounded-md bg-muted px-2 py-1">
+            Intensity {Math.round(Number(readValue(week, 'intensityMultiplier', 'IntensityMultiplier') ?? 0) * 100)}%
+          </span>
+          <span className="rounded-md bg-muted px-2 py-1">
+            {Math.round(Number(readValue(week, 'plannedTotalVolume', 'PlannedTotalVolume') ?? 0)).toLocaleString('vi-VN')} kg
+          </span>
+        </div>
+      </div>
 
-              <label className="plans-field">
-                <span>Template ID</span>
-                <input value={form.templateId} onChange={updateField('templateId')} placeholder="Có thể bỏ trống" />
-              </label>
-            </div>
-          </section>
+      <div className="divide-y divide-border">
+        {getDays(week).map((day) => (
+          <DayBlock key={`${weekNumber}-${readValue(day, 'dayNumber', 'DayNumber')}`} day={day} />
+        ))}
+      </div>
+    </section>
+  );
+}
 
-          <section>
-            <h2>1RM hiện tại</h2>
-            <div className="plans-grid">
-              <LiftInput id="squat" label="Squat" value={form.mainLifts.squat} onChange={updateLift('squat')} />
-              <LiftInput id="bench" label="Bench Press" value={form.mainLifts.bench} onChange={updateLift('bench')} />
-              <LiftInput id="deadlift" label="Deadlift" value={form.mainLifts.deadlift} onChange={updateLift('deadlift')} />
-              <LiftInput id="overheadPress" label="Overhead Press" value={form.mainLifts.overheadPress} onChange={updateLift('overheadPress')} />
-            </div>
-          </section>
+function DayBlock({ day }) {
+  return (
+    <div className="p-4">
+      <div className="flex flex-col justify-between gap-2 md:flex-row md:items-start">
+        <div>
+          <p className="font-bold">
+            {readValue(day, 'dayLabel', 'DayLabel') || `Day ${readValue(day, 'dayNumber', 'DayNumber')}`} - {readValue(day, 'focusArea', 'FocusArea')}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">{readValue(day, 'conflictStatus', 'ConflictStatus')}</p>
+        </div>
+        <Badge variant="neutral">CNS {readValue(day, 'cnsStressScore', 'CnsStressScore') ?? '-'}</Badge>
+      </div>
 
-          <section>
-            <h2>Giới hạn & thiết bị</h2>
-            <div className="plans-checks">
-              {LIMITATIONS.map((item) => (
-                <label key={item.value} className="plans-check">
-                  <input
-                    type="checkbox"
-                    checked={form.limitations.includes(item.value)}
-                    onChange={() => toggleArrayField('limitations', item.value)}
-                  />
-                  <span>{item.label}</span>
-                </label>
-              ))}
-            </div>
-
-            <div className="plans-checks">
-              {EQUIPMENT.map((item) => (
-                <label key={item} className="plans-check">
-                  <input
-                    type="checkbox"
-                    checked={form.equipment.includes(item)}
-                    onChange={() => toggleArrayField('equipment', item)}
-                  />
-                  <span>{item}</span>
-                </label>
-              ))}
-            </div>
-          </section>
-
-          {error && <div className="plans-error">{error}</div>}
-
-          <button className="plans-submit" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Đang sinh giáo án...' : 'Tạo giáo án 4 tuần'}
-          </button>
-        </form>
-
-        <section className="plans-result">
-          {!plan ? (
-            <div className="plans-empty">
-              <h2>Chưa có giáo án</h2>
-              <p>Kết quả sinh bởi Rule Engine sẽ hiển thị tại đây sau khi bạn bấm tạo.</p>
-            </div>
-          ) : (
-            <>
-              <div className="plans-result-header">
-                <div>
-                  <p className="plans-eyebrow">{plan.goal} / {plan.fitnessLevel}</p>
-                  <h2>Giáo án đã tạo</h2>
-                </div>
-                <span className="plans-status">{plan.status}</span>
-              </div>
-
-              {planSummary && (
-                <div className="plans-stats">
-                  <Stat label="Tuần" value={planSummary.weeks} />
-                  <Stat label="Buổi" value={planSummary.days} />
-                  <Stat label="Bài tập" value={planSummary.exercises} />
-                  <Stat label="Volume kg" value={planSummary.totalVolume} />
-                </div>
-              )}
-
-              <div className="plans-weeks">
-                {plan.weeks?.map((week) => (
-                  <article key={week.weekNumber} className="plans-week">
-                    <div className="plans-week-title">
-                      <div>
-                        <h3>Tuần {week.weekNumber}: {week.focus}</h3>
-                        <p>{week.progressionRule}</p>
-                      </div>
-                      <span>{Math.round(Number(week.intensityMultiplier ?? 0) * 100)}%</span>
-                    </div>
-
-                    {week.days?.map((day) => (
-                      <div key={`${week.weekNumber}-${day.dayNumber}`} className="plans-day">
-                        <div className="plans-day-title">
-                          <strong>{day.dayLabel} - {day.focusArea}</strong>
-                          <span>{day.conflictStatus}</span>
-                        </div>
-
-                        <div className="plans-table-wrap">
-                          <table className="plans-table">
-                            <thead>
-                              <tr>
-                                <th>Bài tập</th>
-                                <th>Nhóm cơ</th>
-                                <th>Set</th>
-                                <th>Rep</th>
-                                <th>Intensity</th>
-                                <th>RPE</th>
-                                <th>Tạ</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {day.exercises?.map((exercise) => (
-                                <tr key={exercise.exerciseId}>
-                                  <td>{exercise.exerciseName || exercise.exerciseId}</td>
-                                  <td>{exercise.muscleGroup}</td>
-                                  <td>{exercise.sets}</td>
-                                  <td>{exercise.reps}</td>
-                                  <td>{exercise.intensityPercentage}%</td>
-                                  <td>{exercise.rpe}</td>
-                                  <td>{exercise.targetWeightKg > 0 ? `${exercise.targetWeightKg} kg` : 'BW'}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    ))}
-                  </article>
-                ))}
-              </div>
-            </>
-          )}
-        </section>
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full min-w-[680px] border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
+              <th className="py-2 pr-3 text-left">Bài tập</th>
+              <th className="py-2 pr-3 text-left">Nhóm cơ</th>
+              <th className="py-2 pr-3 text-left">Set</th>
+              <th className="py-2 pr-3 text-left">Rep</th>
+              <th className="py-2 pr-3 text-left">Intensity</th>
+              <th className="py-2 pr-3 text-left">RPE</th>
+              <th className="py-2 pr-3 text-left">Tạ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {getExercises(day).map((exercise) => (
+              <tr key={readValue(exercise, 'exerciseId', 'ExerciseId')} className="border-b border-border last:border-0">
+                <td className="py-3 pr-3 font-medium">{readValue(exercise, 'exerciseName', 'ExerciseName') || readValue(exercise, 'exerciseId', 'ExerciseId')}</td>
+                <td className="py-3 pr-3 text-muted-foreground">{readValue(exercise, 'muscleGroup', 'MuscleGroup')}</td>
+                <td className="py-3 pr-3">{readValue(exercise, 'sets', 'Sets')}</td>
+                <td className="py-3 pr-3">{readValue(exercise, 'reps', 'Reps')}</td>
+                <td className="py-3 pr-3">{readValue(exercise, 'intensityPercentage', 'IntensityPercentage')}%</td>
+                <td className="py-3 pr-3">{readValue(exercise, 'rpe', 'Rpe')}</td>
+                <td className="py-3 pr-3 font-bold">{formatKg(readValue(exercise, 'targetWeightKg', 'TargetWeightKg'))}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
+  );
+}
+
+function SectionTitle({ icon: Icon, title }) {
+  return (
+    <div className="flex items-center gap-2 text-sm font-black">
+      <Icon className="h-4 w-4 text-lime-600 dark:text-lime-300" />
+      {title}
+    </div>
+  );
+}
+
+function Field({ label, className = '', children }) {
+  return (
+    <label className={`flex min-w-0 flex-col gap-1.5 ${className}`}>
+      <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{label}</span>
+      {children}
+    </label>
   );
 }
 
 function LiftInput({ id, label, value, onChange }) {
   return (
-    <label className="plans-field">
-      <span>{label}</span>
-      <input id={id} type="number" min="0" step="2.5" value={value} onChange={onChange} />
-    </label>
+    <Field label={label}>
+      <input
+        id={id}
+        className="h-10 rounded-lg border border-input bg-background px-3 text-sm"
+        type="number"
+        min="0"
+        step="2.5"
+        value={value}
+        onChange={onChange}
+      />
+    </Field>
   );
 }
 
-function Stat({ label, value }) {
+function ToggleChip({ active, label, onClick }) {
   return (
-    <div className="plans-stat">
-      <strong>{value}</strong>
-      <span>{label}</span>
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+        active
+          ? 'border-lime-500/40 bg-lime-500/15 text-lime-700 dark:text-lime-300'
+          : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'
+      }`}
+    >
+      {label}
+    </button>
   );
 }
