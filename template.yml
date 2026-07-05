@@ -136,6 +136,9 @@ Resources:
               OriginAccessIdentity: ""
           - Id: ApiGatewayOrigin
             DomainName: !Sub "${PeriodIQHttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+            # HTTP API dung stage = Environment (vd /dev). CloudFront phai them stage
+            # vao path -> "/api/health" chuyen thanh "/dev/api/health" o origin.
+            OriginPath: !Sub "/${Environment}"
             CustomOriginConfig:
               OriginProtocolPolicy: https-only
         DefaultCacheBehavior:

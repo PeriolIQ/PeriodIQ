@@ -143,6 +143,9 @@ Resources:
         EnvironmentVariables:
           - Name: FRONTEND_BUCKET_NAME
             Value: !Sub "periodiq-frontend-${Environment}-${AWS::AccountId}"
+          # Ten stack chinh -> buildspec query Cognito IDs + CloudFront domain de build frontend
+          - Name: STACK_NAME
+            Value: !Sub "periodiq-${Environment}"
       Artifacts:
         Type: CODEPIPELINE
       TimeoutInMinutes: 10
