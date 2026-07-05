@@ -54,8 +54,11 @@ Resources:
             MetricName: CommonRuleSetMetric
         - Name: AWSManagedRulesBotControlRuleSet
           Priority: 2
+          # Count (khong Block): BotControl chan nham client hop le (curl, mobile app,
+          # mot so fetch/XHR). De Count -> van danh gia + ghi log de xem, nhung KHONG chan.
+          # Muon bat chan lai: doi "Count: {}" thanh "None: {}".
           OverrideAction:
-            None: {}
+            Count: {}
           Statement:
             ManagedRuleGroupStatement:
               VendorName: AWS

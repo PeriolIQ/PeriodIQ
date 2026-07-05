@@ -58,25 +58,25 @@ echo -n "   SQLi UNION SELECT  -> HTTP "; curl -s -o /dev/null -w "%{http_code}\
 
 echo
 echo "==================================================================="
-echo " 5) [BANG CHUNG] CloudWatch WAF BlockedRequests (1 gio qua)"
+echo " 5) [BANG CHUNG] WAF co that su CHAN khong - ban tan cong + sampled requests"
 echo "==================================================================="
-echo "   Cac dimension metric co san cua WebACL nay:"
-aws cloudwatch list-metrics --namespace AWS/WAFV2 --region "$WAF_REGION" \
-  --metric-name BlockedRequests \
-  --query "Metrics[?Dimensions[?Value=='$WAF_NAME']].Dimensions" --output json || true
+echo "   Ban 25 XSS + 25 SQLi qua CloudFront de kich hoat WAF..."
+for i in $(seq 1 25); do
+  curl -s -o /dev/null "$base/?q=<script>alert($i)</script>"
+  curl -s -o /dev/null "$base/?id=$i%20OR%201=1--%20UNION%20SELECT%20password%20FROM%20users"
+done
+echo "   Da ban 50 request tan cong."
+
+START=$(( $(date +%s) - 900 )); END=$(date +%s)
+echo "   Sampled requests khop CommonRuleSet (XSS/SQLi) trong 15 phut qua:"
+aws wafv2 get-sampled-requests --web-acl-arn "$WAF_ARN" \
+  --rule-metric-name CommonRuleSetMetric --scope CLOUDFRONT --region "$WAF_REGION" \
+  --time-window StartTime=$START,EndTime=$END --max-items 100 \
+  --query "SampledRequests[].{Action:Action,Rule:RuleNameWithinRuleGroup,URI:Request.URI}" \
+  --output table || true
 
 echo
-echo "   Tong so request bi WAF CHAN (Rule=ALL):"
-aws cloudwatch get-metric-statistics --region "$WAF_REGION" \
-  --namespace AWS/WAFV2 --metric-name BlockedRequests \
-  --dimensions Name=WebACL,Value="$WAF_NAME" Name=Region,Value=CloudFront Name=Rule,Value=ALL \
-  --start-time "$(date -u -d '-1 hour' +%FT%TZ 2>/dev/null || date -u -v-1H +%FT%TZ)" \
-  --end-time "$(date -u +%FT%TZ)" \
-  --period 300 --statistics Sum \
-  --query "Datapoints[].Sum" --output text || true
-
-echo
-echo "   -> Neu so nay > 0 sau khi ban request tan cong: WAF DANG CHAN dung."
-echo "   -> Neu rong/loi dimension: xem output buoc tren de lay dung Name/Value,"
-echo "      hoac vao Console: WAF & Shield > Web ACLs (Global/CloudFront) >"
-echo "      $WAF_NAME > tab 'Sampled requests'."
+echo "   -> Thay Action=BLOCK: WAF DANG CHAN dung (status HTTP 200 o buoc 4 chi la"
+echo "      do CustomErrorResponses 403->200 cua SPA che di, khong phai WAF khong chay)."
+echo "   -> Rong? Doi ~1-2 phut cho sampled requests xuat hien roi chay lai, hoac xem"
+echo "      Console: WAF & Shield > Web ACLs (Global/CloudFront) > $WAF_NAME > 'Sampled requests'."

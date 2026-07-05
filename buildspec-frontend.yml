@@ -29,8 +29,23 @@ phases:
             - cd "$CODEBUILD_SRC_DIR/PeriodIQ.Frontend"
             - echo "Chay linter..."
             - pnpm run lint || true
-            - echo "Build production..."
-            - pnpm run build
+            # Lay config tu stack chinh roi build trong CUNG 1 lenh (export khong giu qua cac lenh CodeBuild).
+            # Vite bake bien VITE_* tu moi truong vao bundle luc build.
+            - |
+              echo "=== Lay Cognito config tu stack $STACK_NAME ==="
+              export VITE_COGNITO_REGION="$AWS_DEFAULT_REGION"
+              export VITE_AWS_REGION="$AWS_DEFAULT_REGION"
+              export VITE_COGNITO_USER_POOL_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='CognitoUserPoolId'].OutputValue" --output text)
+              export VITE_COGNITO_CLIENT_ID=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='CognitoUserPoolClientId'].OutputValue" --output text)
+              CF_DOMAIN=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDomainName'].OutputValue" --output text)
+              export VITE_API_URL="https://$CF_DOMAIN"
+              echo "UserPoolId=$VITE_COGNITO_USER_POOL_ID  ClientId=$VITE_COGNITO_CLIENT_ID  ApiUrl=$VITE_API_URL"
+              if [ -z "$VITE_COGNITO_USER_POOL_ID" ] || [ -z "$VITE_COGNITO_CLIENT_ID" ] || [ -z "$CF_DOMAIN" ]; then
+                echo "LOI: thieu Cognito/CloudFront config tu stack -> dung build (tranh deploy bundle rong)"; exit 1
+              fi
+              cd "$CODEBUILD_SRC_DIR/PeriodIQ.Frontend"
+              echo "Build production..."
+              pnpm run build
             - echo "Build THANH CONG!"
             - echo "kiem tra output..."
             - ls -la dist/
