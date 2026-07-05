@@ -58,6 +58,14 @@ phases:
             - aws s3 sync dist/ s3://${FRONTEND_BUCKET_NAME}/ --delete --cache-control "max-age=86400"
             - aws s3 cp dist/index.html s3://${FRONTEND_BUCKET_NAME}/index.html --cache-control "no-cache, no-store, must-revalidate"
             - echo "Upload S3 HOAN TAT!"
+            # Invalidate CloudFront de khong phuc vu index.html cu (tro toi bundle hash cu da bi xoa).
+            # Lay distribution id qua domain tu stack (role da co quyen cloudfront:*).
+            - |
+              CF_DOMAIN=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDomainName'].OutputValue" --output text) ;
+              DIST_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?DomainName=='$CF_DOMAIN'].Id | [0]" --output text) ;
+              echo "Invalidate CloudFront dist=$DIST_ID (domain=$CF_DOMAIN)..." ;
+              if [ -z "$DIST_ID" ] || [ "$DIST_ID" = "None" ]; then echo "CANH BAO: khong tim thay distribution id -> bo qua invalidate"; else aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*"; fi
+            - echo "Invalidate CloudFront HOAN TAT!"
 
 artifacts:
     files:
