@@ -1,0 +1,86 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >
+  PeriodIQ - WAF WebACL cho CloudFront (Nguoi 1).
+  Scope CLOUDFRONT BAT BUOC deploy o us-east-1 (stack rieng, tach khoi stack chinh
+  o ap-southeast-1). Lay Output "WebAclArn" truyen vao Parameter WafWebAclArn cua
+  template.yml de gan WAF vao CloudFront distribution.
+
+  Deploy:
+    sam deploy -t waf-cloudfront.yml --region us-east-1 \
+      --stack-name periodiq-waf-cloudfront-dev \
+      --parameter-overrides Environment=dev \
+      --capabilities CAPABILITY_IAM
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - production
+    Description: "Moi truong deploy (dev/staging/production)"
+
+Resources:
+  # ==========================================================================
+  # AWS WAF (Nguoi 1) - Chan SQL Injection, XSS, bot, rate limit ngay o edge.
+  # Scope CLOUDFRONT -> WebACL nay chi tao duoc o us-east-1 va gan truc tiep
+  # vao CloudFront distribution qua thuoc tinh WebACLId (o stack chinh).
+  # ==========================================================================
+  PeriodIQCloudFrontWebAcl:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      Name: !Sub "periodiq-cf-waf-${Environment}"
+      Scope: CLOUDFRONT
+      DefaultAction:
+        Allow: {}
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: true
+        MetricName: !Sub "periodiq-cf-waf-${Environment}"
+      Rules:
+        - Name: AWSManagedRulesCommonRuleSet
+          Priority: 1
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesCommonRuleSet
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: CommonRuleSetMetric
+        - Name: AWSManagedRulesBotControlRuleSet
+          Priority: 2
+          # Count (khong Block): BotControl chan nham client hop le (curl, mobile app,
+          # mot so fetch/XHR). De Count -> van danh gia + ghi log de xem, nhung KHONG chan.
+          # Muon bat chan lai: doi "Count: {}" thanh "None: {}".
+          OverrideAction:
+            Count: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesBotControlRuleSet
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: BotControlMetric
+        - Name: RateLimitRule
+          Priority: 3
+          Action:
+            Block: {}
+          Statement:
+            RateBasedStatement:
+              Limit: 2000 # 2000 requests / 5 phut / IP
+              AggregateKeyType: IP
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: RateLimitMetric
+
+Outputs:
+  WebAclArn:
+    Description: "ARN cua WAF WebACL (CLOUDFRONT) - truyen vao WafWebAclArn cua template.yml"
+    Value: !GetAtt PeriodIQCloudFrontWebAcl.Arn

@@ -159,7 +159,8 @@ builder.Services.AddScoped<RuleDefinitionService>();
 builder.Services.AddScoped<WorkoutSessionLogService>();
 
 // ─── AWS & Background Services ──────────────────────────────────────────────
-builder.Services.AddSingleton<IAmazonSimpleEmailService>(new AmazonSimpleEmailServiceClient());
+builder.Services.AddSingleton<IAmazonSimpleEmailService>(
+    new AmazonSimpleEmailServiceClient(new AmazonSimpleEmailServiceConfig { RegionEndpoint = awsRegionEndpoint }));
 builder.Services.AddScoped<SqsHandler>();
 builder.Services.AddHostedService<SqsWorkerBackgroundService>();
 

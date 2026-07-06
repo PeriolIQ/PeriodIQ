@@ -28,6 +28,13 @@ Parameters:
     Default: "noreply@periodiq.example.com"
     Description: "Email gui giao an / nhac lich tap qua SES (phai verify truoc khi dung that)"
 
+  WafWebAclArn:
+    Type: String
+    Default: ""
+    Description: >
+      ARN cua WAF WebACL scope CLOUDFRONT (deploy tu waf-cloudfront.yml o us-east-1).
+      De trong "" khi chua co WAF -> CloudFront chay khong co WAF.
+
 Globals:
   Function:
     Timeout: 30
@@ -94,65 +101,11 @@ Resources:
       Description: "Nhom User thuong - nguoi tap gym"
 
   # ==========================================================================
-  # 2. AWS WAF (Nguoi 1) - Chan SQL Injection, XSS, bot, rate limit
-  # LUU Y: Scope REGIONAL de tao duoc o ap-southeast-1 (CLOUDFRONT bat buoc us-east-1).
-  # REGIONAL WebACL khong gan vao CloudFront duoc -> gan vao Cognito User Pool (xem WebAclAssociation).
+  # 2. AWS WAF (Nguoi 1) - Chan SQL Injection, XSS, bot, rate limit ngay o edge.
+  # WebACL scope CLOUDFRONT BAT BUOC deploy o us-east-1 -> tach ra file rieng
+  # waf-cloudfront.yml. ARN cua no duoc truyen vao qua Parameter WafWebAclArn
+  # va gan vao CloudFront distribution ben duoi (WebACLId).
   # ==========================================================================
-  PeriodIQWebAcl:
-    Type: AWS::WAFv2::WebACL
-    Properties:
-      Name: !Sub "periodiq-waf-${Environment}"
-      Scope: REGIONAL
-      DefaultAction:
-        Allow: {}
-      VisibilityConfig:
-        SampledRequestsEnabled: true
-        CloudWatchMetricsEnabled: true
-        MetricName: !Sub "periodiq-waf-${Environment}"
-      Rules:
-        - Name: AWSManagedRulesCommonRuleSet
-          Priority: 1
-          OverrideAction:
-            None: {}
-          Statement:
-            ManagedRuleGroupStatement:
-              VendorName: AWS
-              Name: AWSManagedRulesCommonRuleSet
-          VisibilityConfig:
-            SampledRequestsEnabled: true
-            CloudWatchMetricsEnabled: true
-            MetricName: CommonRuleSetMetric
-        - Name: AWSManagedRulesBotControlRuleSet
-          Priority: 2
-          OverrideAction:
-            None: {}
-          Statement:
-            ManagedRuleGroupStatement:
-              VendorName: AWS
-              Name: AWSManagedRulesBotControlRuleSet
-          VisibilityConfig:
-            SampledRequestsEnabled: true
-            CloudWatchMetricsEnabled: true
-            MetricName: BotControlMetric
-        - Name: RateLimitRule
-          Priority: 3
-          Action:
-            Block: {}
-          Statement:
-            RateBasedStatement:
-              Limit: 2000 # 2000 requests / 5 phut / IP
-              AggregateKeyType: IP
-          VisibilityConfig:
-            SampledRequestsEnabled: true
-            CloudWatchMetricsEnabled: true
-            MetricName: RateLimitMetric
-
-  # Gan WAF REGIONAL vao Cognito User Pool (tai nguyen regional o ap-southeast-1)
-  PeriodIQWebAclAssociation:
-    Type: AWS::WAFv2::WebACLAssociation
-    Properties:
-      ResourceArn: !GetAtt PeriodIQUserPool.Arn
-      WebACLArn: !GetAtt PeriodIQWebAcl.Arn
 
   # ==========================================================================
   # 3. CLOUDFRONT (Nguoi 1) - CDN + dinh tuyen /api -> API Gateway
@@ -172,7 +125,9 @@ Resources:
       DistributionConfig:
         Enabled: true
         DefaultRootObject: index.html
-        # WAF chuyen sang REGIONAL gan vao Cognito -> khong gan vao CloudFront nua
+        # Gan WAF WebACL (scope CLOUDFRONT, tu waf-cloudfront.yml o us-east-1).
+        # De trong "" thi CloudFront chay khong co WAF.
+        WebACLId: !Ref WafWebAclArn
         Origins:
           - Id: FrontendS3Origin
             DomainName: !GetAtt FrontendBucket.RegionalDomainName
@@ -181,6 +136,9 @@ Resources:
               OriginAccessIdentity: ""
           - Id: ApiGatewayOrigin
             DomainName: !Sub "${PeriodIQHttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+            # HTTP API dung stage = Environment (vd /dev). CloudFront phai them stage
+            # vao path -> "/api/health" chuyen thanh "/dev/api/health" o origin.
+            OriginPath: !Sub "/${Environment}"
             CustomOriginConfig:
               OriginProtocolPolicy: https-only
         DefaultCacheBehavior:
@@ -204,8 +162,13 @@ Resources:
             ResponsePagePath: /index.html
 
   # ==========================================================================
-  # 4. LAMBDA · API HANDLER (Nguoi 2) - gop ca Rule Engine + Admin API
-  # (Chien luoc Monolithic Lambda - xem README muc "Cau truc du an")
+  # 4. CORE ENGINE - 3 Lambda function rieng (khop so do kien truc):
+  #    - PeriodIQApiFunction        : API Handler  (route /api/* cua user)
+  #    - PeriodIQAdminApiFunction   : Admin API    (route /api/admin/*)
+  #    - PeriodIQRuleEngineFunction : Rule Engine  (route /api/workoutplans/generate)
+  # Ca 3 dung chung 1 code package (PeriodIQ.Api); HttpApi uu tien route cu the hon
+  # /{proxy+} nen admin + generate tu dong vao dung Lambda. Policies giu giong nhau
+  # vi cung code -> tranh loi thieu quyen khi route roi vao ham bat ky.
   # ==========================================================================
   PeriodIQApiFunction:
     Type: AWS::Serverless::Function
@@ -286,6 +249,136 @@ Resources:
                 - cloudwatch:ListMetrics
                 - logs:DescribeLogGroups
               Resource: "*"
+      Tags:
+        Project: PeriodIQ
+        Environment: !Ref Environment
+    Metadata:
+      BuildMethod: dotnet10
+      BuildProperties:
+        ProjectSubPath: PeriodIQ.Api/PeriodIQ.Api.csproj
+
+  # --------------------------------------------------------------------------
+  # 4b. LAMBDA · ADMIN API - route /api/admin/* (cung code PeriodIQ.Api)
+  # --------------------------------------------------------------------------
+  PeriodIQAdminApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "periodiq-admin-api-${Environment}"
+      Handler: PeriodIQ.Api
+      CodeUri: ./PeriodIQ.Backend/PeriodIQ.Api/
+      Description: "PeriodIQ Admin API - xu ly route /api/admin/*"
+      Environment:
+        Variables:
+          SQS_QUEUE_URL: !Ref WorkoutProcessingQueue
+          COGNITO_USER_POOL_ID: !Ref PeriodIQUserPool
+          COGNITO_CLIENT_ID: !Ref PeriodIQUserPoolClient
+          PIPELINE_NAME: !Sub "periodiq-pipeline-${Environment}"
+      Events:
+        AdminEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref PeriodIQHttpApi
+            Path: /api/admin/{proxy+}
+            Method: ANY
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: "Exercise"
+        - DynamoDBCrudPolicy:
+            TableName: "WorkoutTemplate"
+        - DynamoDBCrudPolicy:
+            TableName: "RuleDefinition"
+        - DynamoDBCrudPolicy:
+            TableName: "UserProfile"
+        - DynamoDBCrudPolicy:
+            TableName: "PersonalRecordHistory"
+        - DynamoDBCrudPolicy:
+            TableName: "DailyCnsStatus"
+        - DynamoDBCrudPolicy:
+            TableName: "WorkoutPlan"
+        - DynamoDBCrudPolicy:
+            TableName: "WorkoutSessionLog"
+        - DynamoDBCrudPolicy:
+            TableName: "Progress"
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt WorkoutProcessingQueue.QueueName
+        - CloudWatchLogsFullAccess
+        - Statement:
+            - Sid: ReadCodePipelineHistory
+              Effect: Allow
+              Action:
+                - codepipeline:GetPipeline
+                - codepipeline:ListPipelineExecutions
+                - codepipeline:GetPipelineExecution
+                - codepipeline:ListActionExecutions
+              Resource:
+                - !Sub "arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:periodiq-pipeline-${Environment}"
+            - Sid: ReadCodeBuildForDeployLogs
+              Effect: Allow
+              Action:
+                - codebuild:BatchGetBuilds
+                - codebuild:ListBuildsForProject
+              Resource: "*"
+            - Sid: ReadCloudWatchMonitoring
+              Effect: Allow
+              Action:
+                - cloudwatch:DescribeAlarms
+                - cloudwatch:GetMetricData
+                - cloudwatch:ListMetrics
+                - logs:DescribeLogGroups
+              Resource: "*"
+      Tags:
+        Project: PeriodIQ
+        Environment: !Ref Environment
+    Metadata:
+      BuildMethod: dotnet10
+      BuildProperties:
+        ProjectSubPath: PeriodIQ.Api/PeriodIQ.Api.csproj
+
+  # --------------------------------------------------------------------------
+  # 4c. LAMBDA · RULE ENGINE - route /api/workoutplans/generate (sinh giao an)
+  # --------------------------------------------------------------------------
+  PeriodIQRuleEngineFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "periodiq-rule-engine-${Environment}"
+      Handler: PeriodIQ.Api
+      CodeUri: ./PeriodIQ.Backend/PeriodIQ.Api/
+      Description: "PeriodIQ Rule Engine - sinh giao an 4 tuan (route /api/workoutplans/generate)"
+      Environment:
+        Variables:
+          SQS_QUEUE_URL: !Ref WorkoutProcessingQueue
+          COGNITO_USER_POOL_ID: !Ref PeriodIQUserPool
+          COGNITO_CLIENT_ID: !Ref PeriodIQUserPoolClient
+          PIPELINE_NAME: !Sub "periodiq-pipeline-${Environment}"
+      Events:
+        GenerateEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref PeriodIQHttpApi
+            Path: /api/workoutplans/generate
+            Method: ANY
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: "Exercise"
+        - DynamoDBCrudPolicy:
+            TableName: "WorkoutTemplate"
+        - DynamoDBCrudPolicy:
+            TableName: "RuleDefinition"
+        - DynamoDBCrudPolicy:
+            TableName: "UserProfile"
+        - DynamoDBCrudPolicy:
+            TableName: "PersonalRecordHistory"
+        - DynamoDBCrudPolicy:
+            TableName: "DailyCnsStatus"
+        - DynamoDBCrudPolicy:
+            TableName: "WorkoutPlan"
+        - DynamoDBCrudPolicy:
+            TableName: "WorkoutSessionLog"
+        - DynamoDBCrudPolicy:
+            TableName: "Progress"
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt WorkoutProcessingQueue.QueueName
+        - CloudWatchLogsFullAccess
       Tags:
         Project: PeriodIQ
         Environment: !Ref Environment
@@ -764,8 +857,8 @@ Outputs:
     Value: !Ref PeriodIQUserPoolClient
 
   WafWebAclArn:
-    Description: "WAF WebACL ARN gan vao CloudFront"
-    Value: !GetAtt PeriodIQWebAcl.Arn
+    Description: "WAF WebACL ARN (CLOUDFRONT) dang gan vao CloudFront distribution"
+    Value: !Ref WafWebAclArn
 
   SqsQueueUrl:
     Description: "SQS Queue URL cho workout processing"
@@ -782,6 +875,14 @@ Outputs:
   LambdaFunctionArn:
     Description: "Lambda API function ARN"
     Value: !GetAtt PeriodIQApiFunction.Arn
+
+  AdminApiFunctionName:
+    Description: "Lambda Admin API function name (route /api/admin/*)"
+    Value: !Ref PeriodIQAdminApiFunction
+
+  RuleEngineFunctionName:
+    Description: "Lambda Rule Engine function name (route /api/workoutplans/generate)"
+    Value: !Ref PeriodIQRuleEngineFunction
 
   WorkerFunctionName:
     Description: "Lambda Worker function name"

@@ -19,12 +19,8 @@ namespace PeriodIQ.Api.Handlers
 
         public SqsHandler(IAmazonSimpleEmailService sesClient, IDynamoDBContext dynamoContext, IConfiguration configuration)
         {
-            // Rebuild SES client with explicit region from config to avoid SDK defaulting to US-EAST-1
-            var awsRegion = configuration["AWS:Region"] ?? "ap-southeast-1";
-            var regionEndpoint = Amazon.RegionEndpoint.GetBySystemName(awsRegion);
-            _sesClient = new AmazonSimpleEmailServiceClient(
-                new Amazon.SimpleEmail.AmazonSimpleEmailServiceConfig { RegionEndpoint = regionEndpoint }
-            );
+            // Region is configured at DI registration (see Program.cs); use the injected client directly.
+            _sesClient = sesClient;
             _dynamoContext = dynamoContext;
         }
 
@@ -53,47 +49,40 @@ namespace PeriodIQ.Api.Handlers
                     var targetEmail = user?.Email;
                     if (string.IsNullOrEmpty(targetEmail))
                     {
-                        // Fallback cho mục đích test nếu tài khoản chưa có email
-                        targetEmail = Environment.GetEnvironmentVariable("SES_SENDER_EMAIL") ?? "duyhoanggl98@gmail.com";
-                    }
-
-                    if (!string.IsNullOrEmpty(targetEmail))
-                    {
-                        if (progress != null && !progress.EmailRemindersEnabled)
-                        {
-                            context.Logger.LogInformation($"Skipped sending email to {targetEmail} because EmailRemindersEnabled is false.");
-                            return;
-                        }
-
-                        var senderEmail = Environment.GetEnvironmentVariable("SES_SENDER_EMAIL") ?? "duyhoanggl98@gmail.com";
-                        var userName = (user != null && !string.IsNullOrEmpty(user.FullName)) ? user.FullName : "bạn";
-                        var subject = "PeriodIQ - Giáo án tập luyện mới đã sẵn sàng!";
-                        var body = $"Chào {userName},\n\nGiáo án tập luyện 4 tuần của bạn đã được tạo thành công.\nBạn có thể đăng nhập vào ứng dụng PeriodIQ để xem chi tiết và bắt đầu tập luyện.\n\nChúc bạn đạt được mục tiêu của mình!\n\nTrân trọng,\nĐội ngũ PeriodIQ";
-
-                        var sendRequest = new SendEmailRequest
-                        {
-                            Source = senderEmail,
-                            Destination = new Destination
-                            {
-                                ToAddresses = new List<string> { targetEmail }
-                            },
-                            Message = new Message
-                            {
-                                Subject = new Content(subject),
-                                Body = new Body
-                                {
-                                    Text = new Content(body)
-                                }
-                            }
-                        };
-
-                        var response = await _sesClient.SendEmailAsync(sendRequest);
-                        context.Logger.LogInformation($"Email sent to {targetEmail}! Message ID: {response.MessageId}");
-                    }
-                    else
-                    {
                         context.Logger.LogWarning($"User not found or email is empty for UserId: {eventData.UserId}");
+                        return;
                     }
+
+                    if (progress != null && !progress.EmailRemindersEnabled)
+                    {
+                        context.Logger.LogInformation($"Skipped sending email to {targetEmail} because EmailRemindersEnabled is false.");
+                        return;
+                    }
+
+                    var senderEmail = Environment.GetEnvironmentVariable("SES_SENDER_EMAIL") ?? "duyhoanggl98@gmail.com";
+                    var userName = (user != null && !string.IsNullOrEmpty(user.FullName)) ? user.FullName : "bạn";
+                    var subject = "PeriodIQ - Giáo án tập luyện mới đã sẵn sàng!";
+                    var body = $"Chào {userName},\n\nGiáo án tập luyện 4 tuần của bạn đã được tạo thành công.\nBạn có thể đăng nhập vào ứng dụng PeriodIQ để xem chi tiết và bắt đầu tập luyện.\n\nChúc bạn đạt được mục tiêu của mình!\n\nTrân trọng,\nĐội ngũ PeriodIQ";
+
+                    var sendRequest = new SendEmailRequest
+                    {
+                        Source = senderEmail,
+                        Destination = new Destination
+                        {
+                            ToAddresses = new List<string> { targetEmail }
+                        },
+                        Message = new Message
+                        {
+                            Subject = new Content(subject),
+                            Body = new Body
+                            {
+                                Text = new Content(body)
+                            }
+                        }
+                    };
+
+                    var response = await _sesClient.SendEmailAsync(sendRequest);
+                    context.Logger.LogInformation($"Email sent to {targetEmail}! Message ID: {response.MessageId}");
                 }
             }
             catch (Exception ex)

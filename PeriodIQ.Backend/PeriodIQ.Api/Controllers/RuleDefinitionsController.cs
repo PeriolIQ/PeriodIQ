@@ -50,4 +50,14 @@ public class RuleDefinitionsController : ControllerBase
         await _service.DeleteAsync(id);
         return NoContent();
     }
+
+    [HttpPatch("{id}/toggle")]
+    public async Task<IActionResult> Toggle(string id)
+    {
+        var item = await _service.GetByIdAsync(id);
+        if (item == null) return NotFound();
+        item.IsActive = !item.IsActive;
+        await _service.UpdateAsync(item);
+        return Ok(new { item.Id, item.IsActive });
+    }
 }
