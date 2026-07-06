@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import profileService from '@/services/profileService';
 import { Loader2, ShieldCheck, CheckCircle2, Zap, Star, Crown } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import PersonalInfoCard from './components/PersonalInfoCard';
 import TrainingProfileCard from './components/TrainingProfileCard';
 import SubscriptionCard from './components/SubscriptionCard';
@@ -23,6 +24,7 @@ const TIER_CONFIG = {
 };
 
 export default function ProfilePage() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [profile, setProfile] = useState(null);
   const [form, setForm] = useState({
@@ -101,7 +103,7 @@ export default function ProfilePage() {
   if (loading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-lime-400" />
+        <Loader2 className="w-8 h-8 animate-spin text-blue-400" />
       </div>
     );
   }
@@ -114,7 +116,7 @@ export default function ProfilePage() {
   return (
     <div className="max-w-6xl mx-auto w-full space-y-8 pb-12">
 
-      {/* ── Page Header (same pattern as HomePage) ── */}
+      {/* ���� Page Header (same pattern as HomePage) ���� */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         {/* Left: Avatar + title */}
         <div className="flex items-center gap-4">
@@ -124,7 +126,7 @@ export default function ProfilePage() {
             </span>
           </div>
           <div>
-            <h1 className="text-4xl font-black text-lime-500 tracking-tight">Settings &amp; Profile</h1>
+            <h1 className="text-4xl font-black text-blue-500 tracking-tight">{t('profile.title')}</h1>
             <p className="text-muted-foreground font-medium uppercase tracking-wider text-sm mt-1">
               {displayName}
               {(profile?.email || user?.email) && (
@@ -141,39 +143,39 @@ export default function ProfilePage() {
           </span>
           {saved && (
             <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 font-mono">
-              <CheckCircle2 className="w-3.5 h-3.5" /> SAVED
+              <CheckCircle2 className="w-3.5 h-3.5" /> {t('common.saved')}
             </span>
           )}
         </div>
       </div>
 
-      {/* ── Bento Grid (same pattern as HomePage) ── */}
+      {/* ���� Bento Grid (same pattern as HomePage) ���� */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
         <PersonalInfoCard form={form} setField={setField} />
         <TrainingProfileCard form={form} setField={setField} />
         <SubscriptionCard tier={tier} />
 
-        {/* Save / Discard — last row, full width */}
+        {/* Save / Discard � last row, full width */}
         <div className="col-span-1 md:col-span-12 flex items-center justify-between gap-4
           bg-card border border-border rounded-xl px-6 py-4 shadow-sm">
           <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
             <ShieldCheck className="w-3.5 h-3.5" />
-            All changes are securely encrypted.
+            {t('profile.encrypted')}
           </div>
           <div className="flex gap-3">
             <button onClick={handleDiscard} disabled={!dirty || saving}
               className="px-5 py-2.5 border border-border text-foreground font-bold rounded-lg
                 hover:bg-muted transition-all text-xs font-mono uppercase tracking-wider disabled:opacity-40">
-              Discard
+                {t('common.discard')}
             </button>
             <button id="pf-save" onClick={handleSave}
               disabled={(!dirty && !isNew) || saving}
-              className="px-6 py-2.5 bg-lime-400 text-black font-bold rounded-lg
-                hover:bg-lime-300 active:scale-95 transition-all text-xs font-mono uppercase tracking-wider
-                disabled:opacity-40 flex items-center gap-2 shadow-lg shadow-lime-400/25 min-w-[140px] justify-center">
+              className="px-6 py-2.5 bg-blue-400 text-black font-bold rounded-lg
+                hover:bg-blue-300 active:scale-95 transition-all text-xs font-mono uppercase tracking-wider
+                disabled:opacity-40 flex items-center gap-2 shadow-lg shadow-blue-400/25 min-w-[140px] justify-center">
               {saving
                 ? <Loader2 className="w-4 h-4 animate-spin" />
-                : <><ShieldCheck className="w-3.5 h-3.5" /> Save Changes</>
+                : <><ShieldCheck className="w-3.5 h-3.5" /> {t('common.save')}</>
               }
             </button>
           </div>
@@ -183,3 +185,4 @@ export default function ProfilePage() {
     </div>
   );
 }
+

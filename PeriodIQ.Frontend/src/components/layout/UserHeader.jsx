@@ -8,7 +8,8 @@ const PAGE_TITLES = [
   { match: /^\/exercises/, title: 'Bài tập' },
   { match: /^\/settings/, title: 'Cài đặt' },
   { match: /^\/profile/, title: 'Hồ sơ cá nhân' },
-  { match: /^\/$/, title: 'Tổng quan' },
+  { match: /^\/dashboard/, title: 'Tổng quan' },
+  { match: /^\/$/, title: 'Trang chủ' },
 ];
 
 function getPageTitle(pathname) {

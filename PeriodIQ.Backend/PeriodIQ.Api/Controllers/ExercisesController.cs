@@ -8,7 +8,7 @@ namespace PeriodIQ.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Roles = "Admin")]
+[Authorize] // Allow any authenticated user by default
 public class ExercisesController : ControllerBase
 {
     private readonly ExerciseService _service;
@@ -30,6 +30,7 @@ public class ExercisesController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "Admin")] // Restrict to Admin
     public async Task<IActionResult> Create([FromBody] Exercise item)
     {
         await _service.AddAsync(item);
@@ -37,6 +38,7 @@ public class ExercisesController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [Authorize(Roles = "Admin")] // Restrict to Admin
     public async Task<IActionResult> Update(string id, [FromBody] Exercise item)
     {
         if (id != item.Id) return BadRequest("ID mismatch");
@@ -45,6 +47,7 @@ public class ExercisesController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [Authorize(Roles = "Admin")] // Restrict to Admin
     public async Task<IActionResult> Delete(string id)
     {
         await _service.DeleteAsync(id);

@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { Flame, Zap } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import progressService from '@/services/progressService';
 import { useAuth } from '@/context/AuthContext';
 import CnsStatusCard from './components/CnsStatusCard';
@@ -9,7 +10,8 @@ import WeeklyIntensityChart from './components/WeeklyIntensityChart';
 import RecentPrsCard from './components/RecentPrsCard';
 import WeightProgressionChart from './components/WeightProgressionChart';
 
-export default function HomePage() {
+export default function UserDashboardPage() {
+  const { t } = useTranslation();
   const [progress, setProgress] = useState(null);
   const { user } = useAuth();
   
@@ -34,13 +36,13 @@ export default function HomePage() {
       {/* Header Metrics */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
-          <h1 className="text-4xl font-black text-lime-500 tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground font-medium uppercase tracking-wider text-sm mt-1">Athletic Performance Overview</p>
+          <h1 className="text-4xl font-black text-blue-500 tracking-tight">{t('dashboard.title')}</h1>
+          <p className="text-muted-foreground font-medium uppercase tracking-wider text-sm mt-1">{t('dashboard.performance')}</p>
         </div>
         <div className="flex gap-6 bg-card p-3 rounded-lg border shadow-sm">
           <div className="flex items-center gap-2">
             <Flame className="w-5 h-5 text-orange-500 fill-orange-500" />
-            <span className="font-mono text-sm font-bold text-muted-foreground">{progress?.currentStreak || 0} DAY STREAK</span>
+            <span className="font-mono text-sm font-bold text-muted-foreground">{progress?.currentStreak || 0} {t('dashboard.day_streak')}</span>
           </div>
           <div className="w-px bg-border"></div>
           <div className="flex items-center gap-2">
@@ -62,3 +64,4 @@ export default function HomePage() {
     </div>
   );
 }
+

@@ -4,6 +4,7 @@ import LiveWorkoutHeader from './components/LiveWorkoutHeader';
 import ExerciseCard from './components/ExerciseCard';
 import LiveWorkoutFooter from './components/LiveWorkoutFooter';
 import workoutSessionLogService from '@/services/workoutSessionLogService';
+import { toast } from 'react-hot-toast';
 
 const LiveWorkoutPage = () => {
     const navigate = useNavigate();
@@ -90,23 +91,23 @@ const LiveWorkoutPage = () => {
             };
 
             await workoutSessionLogService.logSession(sessionData);
-            alert("Đã lưu buổi tập thành công! Bạn nhận được +50 XP");
+            toast.success("Đã lưu buổi tập thành công! Bạn nhận được +50 XP");
             navigate('/home');
         } catch (error) {
             console.error("Lỗi khi lưu buổi tập", error);
-            alert("Lỗi khi lưu buổi tập. Vui lòng thử lại.");
+            toast.error("Lỗi khi lưu buổi tập. Vui lòng thử lại.");
         } finally {
             setSubmitting(false);
         }
     };
 
     if (loading) {
-        return <div className="min-h-screen flex items-center justify-center bg-background text-on-background">Đang tải giáo án...</div>;
+        return <div className="min-h-screen flex items-center justify-center bg-background text-foreground">Đang tải giáo án...</div>;
     }
 
     if (!plan || exercises.length === 0) {
         return (
-            <div className="min-h-screen flex flex-col items-center justify-center bg-background text-on-background">
+            <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground">
                 <h2 className="text-2xl font-bold mb-4">Không có giáo án nào đang kích hoạt</h2>
                 <button onClick={() => navigate('/home')} className="bg-primary text-primary-foreground px-6 py-2 rounded">
                     Quay về Dashboard
@@ -116,7 +117,7 @@ const LiveWorkoutPage = () => {
     }
 
     return (
-        <div className="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen flex flex-col relative w-full overflow-hidden">
+        <div className="bg-background text-foreground antialiased min-h-screen flex flex-col relative w-full overflow-hidden">
             <style dangerouslySetInnerHTML={{__html: `
                 .toggle-checkbox:checked { right: 0; border-color: #84cc16; }
                 .toggle-checkbox:checked + .toggle-label { background-color: #84cc16; }
@@ -128,7 +129,7 @@ const LiveWorkoutPage = () => {
             <LiveWorkoutHeader title={plan?.goal || "Session"} />
 
             {/* Workout Canvas */}
-            <div className="flex-1 overflow-y-auto px-margin-mobile md:px-margin-desktop py-lg pb-32">
+            <div className="flex-1 overflow-y-auto px-4 md:px-8 py-8 pb-32">
                 {exercises.map((exercise, index) => (
                     <ExerciseCard 
                         key={index}

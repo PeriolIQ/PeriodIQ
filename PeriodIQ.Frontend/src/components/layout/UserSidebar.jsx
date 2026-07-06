@@ -1,12 +1,15 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, CalendarDays, Edit3, Trophy, Settings as SettingsIcon, ShieldCheck, X, LogOut } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, Edit3, Trophy, Settings as SettingsIcon, ShieldCheck, X, LogOut, Home } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
+import { useTranslation } from 'react-i18next';
+import LanguageSwitcher from '@/components/common/LanguageSwitcher';
 
 export default function UserSidebar({ open, onClose }) {
   const { user, isAdmin, logout } = useAuth();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   
   const handleLogout = () => {
     logout();
@@ -14,11 +17,12 @@ export default function UserSidebar({ open, onClose }) {
   };
   
   const NAV_ITEMS = [
-    { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
-    { to: '/workout-plans', label: 'Workout Plan', icon: CalendarDays },
-    { to: '/log-workout', label: 'Log Session', icon: Edit3 },
-    { to: '/prs', label: 'PR History', icon: Trophy },
-    { to: '/settings', label: 'Settings', icon: SettingsIcon },
+    { to: '/home', label: 'Home', icon: Home, end: true },
+    { to: '/dashboard', label: t('sidebar.dashboard'), icon: LayoutDashboard },
+    { to: '/workout-plans', label: t('sidebar.workout_plan'), icon: CalendarDays },
+    { to: '/log-workout', label: t('sidebar.log_session'), icon: Edit3 },
+    { to: '/prs', label: t('sidebar.pr_history'), icon: Trophy },
+    { to: '/settings', label: t('sidebar.settings'), icon: SettingsIcon },
   ];
 
   return (
@@ -29,15 +33,15 @@ export default function UserSidebar({ open, onClose }) {
         {/* Profile Header - click to go to profile */}
         <NavLink to="/profile" onClick={onClose}
           className={({ isActive }) =>
-            `flex h-24 items-center gap-3 border-b border-border px-5 transition-colors hover:bg-muted cursor-pointer ${isActive ? 'bg-lime-400/10' : ''}`
+            `flex h-24 items-center gap-3 border-b border-border px-5 transition-colors hover:bg-muted cursor-pointer ${isActive ? 'bg-blue-400/10' : ''}`
           }
         >
-          <div className="h-12 w-12 shrink-0 rounded-full bg-muted border-2 border-lime-400 flex items-center justify-center text-lg font-bold overflow-hidden">
+          <div className="h-12 w-12 shrink-0 rounded-full bg-muted border-2 border-blue-400 flex items-center justify-center text-lg font-bold overflow-hidden">
              {(user?.name || user?.email || 'U')[0].toUpperCase()}
           </div>
           <div className="flex flex-col flex-1 min-w-0">
-            <span className="text-base font-bold text-lime-600 dark:text-lime-400">Elite Performer</span>
-            <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Level 42 Athlete</span>
+            <span className="text-base font-bold text-blue-600 dark:text-blue-400">{t('sidebar.elite_performer')}</span>
+            <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider">{t('sidebar.user')}</span>
           </div>
           <button className="md:hidden ml-auto" onClick={(e) => { e.preventDefault(); onClose(); }} aria-label="Đóng menu">
             <X className="h-5 w-5 text-muted-foreground" />
@@ -51,7 +55,7 @@ export default function UserSidebar({ open, onClose }) {
               className={({ isActive }) => cn(
                 'flex items-center gap-4 px-4 py-3 text-sm font-medium transition-all duration-200',
                 isActive 
-                  ? 'bg-lime-400/20 text-lime-600 dark:text-lime-400 border-r-4 border-lime-400' 
+                  ? 'bg-blue-400/20 text-blue-600 dark:text-blue-400 border-r-4 border-blue-400' 
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground rounded-lg'
               )}>
               {({ isActive }) => (
@@ -66,21 +70,26 @@ export default function UserSidebar({ open, onClose }) {
           {isAdmin && (
             <div className="mt-8 pt-4 border-t border-border">
               <NavLink to="/admin" className="flex items-center gap-4 rounded-lg px-4 py-3 text-sm font-medium text-amber-600 hover:bg-amber-100 dark:hover:bg-amber-950/30">
-                <ShieldCheck className="h-5 w-5" /> Admin Zone
+                <ShieldCheck className="h-5 w-5" /> Khu vực Quản trị
               </NavLink>
             </div>
           )}
         </nav>
 
         <div className="border-t border-border p-4 flex flex-col gap-3">
-           <Button className="w-full bg-lime-400 text-black hover:bg-lime-500 font-bold tracking-wide uppercase py-6 text-sm">
-              Start Training
+           <Button className="w-full bg-blue-400 text-black hover:bg-blue-500 font-bold tracking-wide uppercase py-6 text-sm">
+              {t('sidebar.start_training')}
            </Button>
-           <button onClick={handleLogout} className="flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-destructive transition-colors py-2">
-             <LogOut className="h-4 w-4" /> Đăng xuất
-           </button>
+           <div className="flex items-center justify-between gap-2 mt-2">
+             <LanguageSwitcher />
+             <button onClick={handleLogout} className="flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-destructive transition-colors py-2">
+               <LogOut className="h-4 w-4" /> Đăng xuất
+             </button>
+           </div>
         </div>
       </aside>
     </>
   );
 }
+
+

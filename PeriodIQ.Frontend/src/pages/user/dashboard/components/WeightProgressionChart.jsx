@@ -3,11 +3,13 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { TrendingUp, Dumbbell, LineChart as ChartIcon } from 'lucide-react';
 import progressService from '@/services/progressService';
 import { adminMasterDataApi } from '@/services/adminMasterDataService';
+import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
 
 export default function WeightProgressionChart() {
+  const { t } = useTranslation();
   const [data, setData] = useState([]);
-  const [exerciseName, setExerciseName] = useState('Chưa xác định');
+  const [exerciseName, setExerciseName] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -60,13 +62,13 @@ export default function WeightProgressionChart() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Dumbbell className="w-5 h-5 text-secondary-container" />
-            <h3 className="font-semibold text-lg tracking-tight">Biểu Đồ Tăng Tạ {data.length > 0 && `(${exerciseName})`}</h3>
+            <h3 className="font-semibold text-lg tracking-tight">{t('dashboard.weight_chart')} {data.length > 0 && `(${exerciseName})`}</h3>
           </div>
-          <p className="text-sm text-muted-foreground">Theo dõi mức tạ tối đa (Kg) qua các tuần</p>
+          <p className="text-sm text-muted-foreground">{t('dashboard.weight_chart_desc')}</p>
         </div>
         <div className="flex items-center gap-2 bg-secondary-container/10 text-secondary-container px-3 py-1.5 rounded-full">
           <TrendingUp className="w-4 h-4" />
-          <span className="text-sm font-bold">Tiến triển</span>
+          <span className="text-sm font-bold">{t('dashboard.progression')}</span>
         </div>
       </div>
       
@@ -78,8 +80,7 @@ export default function WeightProgressionChart() {
         ) : data.length === 0 ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-card/50 z-10 text-muted-foreground">
             <ChartIcon className="w-12 h-12 mb-4 opacity-50" />
-            <p className="text-lg font-medium">Chưa có dữ liệu tập luyện</p>
-            <p className="text-sm">Hãy hoàn thành buổi tập đầu tiên để theo dõi tiến độ của bạn!</p>
+            <p className="text-lg font-medium">{t('dashboard.no_data')}</p>
           </div>
         ) : null}
         <ResponsiveContainer width="100%" height="100%">
@@ -110,7 +111,7 @@ export default function WeightProgressionChart() {
               }} 
               itemStyle={{ color: 'var(--foreground)' }}
               labelStyle={{ color: 'var(--muted-foreground)', marginBottom: '4px' }}
-              formatter={(value) => [`${value} Kg`, 'Mức Tạ Max']}
+              formatter={(value) => [`${value} Kg`, t('dashboard.max_weight')]}
             />
             <Line 
               type="monotone" 

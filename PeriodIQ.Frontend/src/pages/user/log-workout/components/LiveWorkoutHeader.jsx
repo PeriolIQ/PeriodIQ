@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 const LiveWorkoutHeader = ({ title }) => {
+    const { t } = useTranslation();
     const [showColon, setShowColon] = useState(true);
     const [secondsElapsed, setSecondsElapsed] = useState(42 * 60 + 15);
     
@@ -22,17 +24,17 @@ const LiveWorkoutHeader = ({ title }) => {
     const time = formatTime(secondsElapsed);
 
     return (
-        <div className="sticky top-0 z-40 bg-surface/90 backdrop-blur-md border-b border-surface-variant py-md px-margin-mobile md:px-margin-desktop flex flex-col md:flex-row justify-between items-start md:items-center gap-sm">
+        <div className="sticky top-0 z-40 bg-background/90 backdrop-blur-md border-b border-border py-4 px-4 md:px-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
-                <div className="text-secondary-container font-data-label text-data-label uppercase tracking-widest mb-base flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-error animate-pulse"></span>
-                    Live Session
+                <div className="text-primary font-bold text-xs uppercase tracking-widest mb-1 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                    {t('live_workout.live_session')}
                 </div>
-                <h2 className="font-headline-lg text-headline-lg-mobile md:text-headline-lg text-on-background">{title}</h2>
+                <h2 className="font-bold text-3xl md:text-4xl text-foreground">{title}</h2>
             </div>
-            <div className="bg-surface-container border border-surface-variant rounded-lg px-lg py-sm flex flex-col items-center min-w-[200px] training-active-glow">
-                <span className="font-data-label text-data-label text-on-surface-variant mb-1 uppercase tracking-widest">Elapsed Time</span>
-                <div className="font-data-label text-display-lg text-secondary-container tracking-wider">
+            <div className="bg-card border border-border rounded-lg px-6 py-3 flex flex-col items-center min-w-[200px] shadow-sm">
+                <span className="font-bold text-xs text-muted-foreground mb-1 uppercase tracking-widest">{t('live_workout.elapsed_time')}</span>
+                <div className="font-bold text-4xl text-primary tracking-wider font-mono">
                     {time.h}
                     <span className={showColon ? '' : 'opacity-50'}>:</span>
                     {time.m}
@@ -45,3 +47,4 @@ const LiveWorkoutHeader = ({ title }) => {
 };
 
 export default LiveWorkoutHeader;
+

@@ -440,10 +440,10 @@ public class RuleEngineService
     {
         return new()
         {
-            new WeekProfile(1, "Base volume", "Khoi tao volume nen, RPE 7", 1m, 1m, 7m),
-            new WeekProfile(2, "Volume overload", "Tang volume nhe va giu ky thuat on dinh", 1.08m, 1.03m, 7.5m),
-            new WeekProfile(3, "Peak intensity", "Tang intensity, giam bien do loi tap", 1.12m, 1.06m, 8m),
-            new WeekProfile(4, "Deload", "Giam tai de hoi phuc CNS", 0.72m, 0.88m, 6m)
+            new WeekProfile(1, "Base volume", "base_volume", 1m, 1m, 7m),
+            new WeekProfile(2, "Volume overload", "volume_overload", 1.08m, 1.03m, 7.5m),
+            new WeekProfile(3, "Peak intensity", "peak_intensity", 1.12m, 1.06m, 8m),
+            new WeekProfile(4, "Deload", "deload", 0.72m, 0.88m, 6m)
         };
     }
 
