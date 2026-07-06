@@ -31,6 +31,20 @@ namespace PeriodIQ.Api.Controllers
                 progress = new Progress { Id = userId, UserId = userId };
                 await _progressRepository.AddAsync(progress);
             }
+            else
+            {
+                // Check if streak is lost
+                if (progress.LastWorkoutDate.HasValue)
+                {
+                    var today = System.DateTime.UtcNow.Date;
+                    var lastWorkout = progress.LastWorkoutDate.Value.Date;
+                    if (lastWorkout < today.AddDays(-1) && progress.CurrentStreak > 0)
+                    {
+                        progress.CurrentStreak = 0;
+                        await _progressRepository.UpdateAsync(progress);
+                    }
+                }
+            }
 
             return Ok(progress);
         }

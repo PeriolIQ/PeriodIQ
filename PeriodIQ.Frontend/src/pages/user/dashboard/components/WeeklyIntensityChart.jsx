@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
+import { useTranslation } from 'react-i18next';
 import dashboardService from '@/services/dashboardService';
 
 export default function WeeklyIntensityChart() {
+  const { t } = useTranslation();
   const [chartData, setChartData] = useState([]);
 
   useEffect(() => {
@@ -30,11 +32,11 @@ export default function WeeklyIntensityChart() {
           rpe = sum / dayLogs.length;
         }
         
-        const dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+        const dayLabels = t('dashboard.days', { returnObjects: true });
         
         days.push({
           label: dayLabels[d.getDay()],
-          rpe: Math.min(10, Math.max(0, rpe)) // clamp 0-10
+          rpe: Math.min(10, Math.max(0, rpe)) 
         });
       }
       
@@ -44,11 +46,11 @@ export default function WeeklyIntensityChart() {
 
   return (
     <Card className="col-span-1 md:col-span-8 p-6 min-h-[250px] flex flex-col shadow-sm">
-      <h2 className="text-xl font-bold mb-6">7-Day Intensity (RPE)</h2>
+      <h2 className="text-xl font-bold mb-6">{t('dashboard.intensity_chart')}</h2>
       <div className="flex-1 flex items-end justify-between gap-4 h-full pt-4">
         
         {chartData.length === 0 ? (
-          <div className="w-full text-center text-muted-foreground text-sm">Loading chart data...</div>
+          <div className="w-full text-center text-muted-foreground text-sm">{t('common.loading')}</div>
         ) : (
           chartData.map((data, index) => {
             const heightPercent = data.rpe === 0 ? 5 : (data.rpe / 10) * 100;
@@ -67,9 +69,9 @@ export default function WeeklyIntensityChart() {
               shadowClass = "shadow-[0_0_10px_rgba(249,115,22,0.3)]";
               textClass = "text-orange-500 font-bold";
             } else if (data.rpe >= 5) {
-              colorClass = "bg-lime-500 group-hover:bg-lime-400";
+              colorClass = "bg-blue-500 group-hover:bg-blue-400";
               shadowClass = "shadow-[0_0_10px_rgba(132,204,22,0.5)]";
-              textClass = "text-lime-500 font-bold";
+              textClass = "text-blue-500 font-bold";
             } else if (data.rpe > 0) {
               colorClass = "bg-muted group-hover:bg-muted-foreground/20";
             } else {
@@ -96,3 +98,4 @@ export default function WeeklyIntensityChart() {
     </Card>
   );
 }
+

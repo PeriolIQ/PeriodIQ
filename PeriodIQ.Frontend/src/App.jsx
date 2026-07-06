@@ -17,14 +17,13 @@ import AdminExercisesPage from './pages/admin/AdminExercisesPage';
 import AdminRulesPage from './pages/admin/AdminRulesPage';
 import AdminTemplatesPage from './pages/admin/AdminTemplatesPage';
 import WorkoutPlansPage from './pages/user/workout-plans/WorkoutPlansPage';
-import HomePage from './pages/user/home/HomePage';
+import PlanDetailPage from './pages/user/workout-plans/PlanDetailPage';
+import UserDashboardPage from './pages/user/dashboard/UserDashboardPage';
 import LogWorkout from './pages/user/log-workout/LogWorkout';
 import LiveWorkoutPage from './pages/user/log-workout/LiveWorkoutPage';
 import Settings from './pages/user/settings/Settings';
-
-function NotFound() {
-  return <h2 className="text-3xl font-bold text-destructive">404 - Page Not Found</h2>;
-}
+import HomePage from './pages/public/home/HomePage';
+import NotFoundPage from './pages/public/NotFoundPage';
 
 // Placeholder cho các trang admin chưa được nhóm khác triển khai
 function AdminComingSoon() {
@@ -63,30 +62,36 @@ function AppLayout() {
   return (
     <Routes>
       {/* Public routes */}
-      <Route path="/login" element={<LoginPage />} />
+      <Route path="/" element={<LoginPage />} />
+      <Route path="/home" element={<HomePage />} />
+      <Route path="/login" element={<Navigate to="/" replace />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
       {/* Protected user routes wrapped in UserLayout */}
       <Route element={<ProtectedRoute><UserLayout /></ProtectedRoute>}>
-        <Route path="/" element={<HomePage />} />
+        <Route path="/dashboard" element={<UserDashboardPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/workout-plans" element={<WorkoutPlansPage />} />
+        <Route path="/workout-plans/:id" element={<PlanDetailPage />} />
         <Route path="/log-workout" element={<LogWorkout />} />
         <Route path="/live-workout" element={<LiveWorkoutPage />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
 
-      <Route path="*" element={<NotFound />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 }
+
+import { Toaster } from 'react-hot-toast';
 
 function App() {
   return (
     <Router>
       <AuthProvider>
         <AppLayout />
+        <Toaster position="top-center" toastOptions={{ className: 'dark:bg-card dark:text-card-foreground border shadow-lg rounded-xl', duration: 4000 }} />
       </AuthProvider>
     </Router>
   );

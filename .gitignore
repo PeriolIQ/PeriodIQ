@@ -41,3 +41,6 @@ Thumbs.db
 .claude
 .aws-sam/
 .idea
+# AppSettings
+PeriodIQ.Backend/PeriodIQ.Api/appsettings.json
+PeriodIQ.Backend/PeriodIQ.Api/appsettings.Development.json
