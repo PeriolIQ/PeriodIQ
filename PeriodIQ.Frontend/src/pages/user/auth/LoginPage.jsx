@@ -6,8 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AuthIllustration from './AuthIllustration';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import LanguageSwitcher from '@/components/common/LanguageSwitcher';
+import logoImg from '@/assets/logo2.png';
 import { toast } from 'react-hot-toast';
 
 export default function LoginPage() {
@@ -50,10 +52,10 @@ export default function LoginPage() {
         </div>
         <div className="w-full max-w-md">
           <div className="flex flex-col items-center lg:items-start mb-8">
-            <div className="h-12 w-12 bg-blue-600 rounded-xl flex items-center justify-center text-white mb-4">
-              <span className="font-black text-2xl">P</span>
-            </div>
-            <h1 className="text-2xl font-bold text-foreground">{t('auth.login_title')} PeriodIQ</h1>
+            <img src={logoImg} alt="PeriodIQ Logo" className="h-14 w-14 object-cover rounded-xl mb-4" />
+            <h1 className="text-2xl font-bold text-foreground">
+              {t('auth.login_title')} Period<span className="text-blue-500 font-black">IQ</span>
+            </h1>
             <p className="text-sm text-muted-foreground mt-2">{t('auth.login_desc')}</p>
           </div>
 

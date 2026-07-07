@@ -42,6 +42,10 @@ public class WorkoutPlanService
     private async Task<WorkoutPlan> SavePlanAndPublishEventAsync(WorkoutPlan plan)
     {
         await _planRepo.AddAsync(plan);
+        
+        // Tự động gỡ Active các giáo án cũ và set Active cho giáo án mới này
+        await ActivatePlanAsync(plan.Id, plan.UserId);
+        
         await _queueService.SendMessageAsync("workout-plan-queue", new 
         {
             plan.UserId,
@@ -52,8 +56,29 @@ public class WorkoutPlanService
     }
 
     public async Task<IEnumerable<WorkoutPlan>> GetAllAsync() => await _planRepo.GetAllAsync();
+    public async Task<IEnumerable<WorkoutPlan>> GetPlansByUserIdAsync(string userId) => await _planRepo.GetPlansByUserIdAsync(userId);
     public async Task<WorkoutPlan> GetByIdAsync(string id) => await _planRepo.GetByIdAsync(id);
     public async Task AddAsync(WorkoutPlan entity) => await _planRepo.AddAsync(entity);
     public async Task UpdateAsync(WorkoutPlan entity) => await _planRepo.UpdateAsync(entity);
     public async Task DeleteAsync(string id) => await _planRepo.DeleteAsync(id);
+
+    public async Task ActivatePlanAsync(string id, string userId)
+    {
+        var allPlans = await _planRepo.GetPlansByUserIdAsync(userId);
+        foreach (var p in allPlans)
+        {
+            if (p.Status == "Active" && p.Id != id)
+            {
+                p.Status = "Completed";
+                await _planRepo.UpdateAsync(p);
+            }
+        }
+        
+        var planToActivate = await _planRepo.GetByIdAsync(id);
+        if (planToActivate != null && planToActivate.UserId == userId)
+        {
+            planToActivate.Status = "Active";
+            await _planRepo.UpdateAsync(planToActivate);
+        }
+    }
 }

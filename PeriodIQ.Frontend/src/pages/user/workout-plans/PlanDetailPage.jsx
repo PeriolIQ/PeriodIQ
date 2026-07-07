@@ -35,6 +35,19 @@ export default function PlanDetailPage() {
     loadPlan();
   }, [id]);
 
+  const handleActivate = async () => {
+    try {
+      setLoading(true);
+      const updated = await import('@/services/workoutPlanService').then(m => m.activatePlan(id));
+      setPlan(updated);
+      import('react-hot-toast').then(m => m.toast.success(t('plan.activated_successfully', 'Đã kích hoạt giáo án!')));
+    } catch (err) {
+      import('react-hot-toast').then(m => m.toast.error('Lỗi khi kích hoạt giáo án'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const weeks = useMemo(() => plan ? getWeeks(plan) : [], [plan]);
   const currentWeek = weeks[selectedWeekIndex];
   const currentDay = currentWeek ? getDays(currentWeek)[selectedDayIndex] : null;
@@ -63,7 +76,7 @@ export default function PlanDetailPage() {
 
   return (
     <div className="max-w-7xl mx-auto w-full flex flex-col gap-6 pt-2 pb-16">
-      <PlanHeader plan={plan} onBack={() => navigate('/workout-plans')} />
+      <PlanHeader plan={plan} onBack={() => navigate('/workout-plans')} onActivate={handleActivate} />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start mt-2">
         <div className="lg:col-span-3">

@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { useTranslation } from 'react-i18next';
 import LanguageSwitcher from '@/components/common/LanguageSwitcher';
+import logoImg from '@/assets/logo2.png';
 
 export default function UserSidebar({ open, onClose }) {
   const { user, isAdmin, logout } = useAuth();
@@ -77,7 +78,7 @@ export default function UserSidebar({ open, onClose }) {
         </nav>
 
         <div className="border-t border-border p-4 flex flex-col gap-3">
-           <Button className="w-full bg-blue-400 text-black hover:bg-blue-500 font-bold tracking-wide uppercase py-6 text-sm">
+           <Button onClick={() => { onClose(); navigate('/live-workout'); }} className="w-full bg-blue-400 text-black hover:bg-blue-500 font-bold tracking-wide uppercase py-6 text-sm">
               {t('sidebar.start_training')}
            </Button>
            <div className="flex items-center justify-between gap-2 mt-2">

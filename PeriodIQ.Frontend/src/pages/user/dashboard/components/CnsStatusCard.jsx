@@ -11,15 +11,20 @@ export default function CnsStatusCard() {
   useEffect(() => {
     dashboardService.getMyStatus().then(status => {
       if (status) {
-        // Simple readiness formula (mocking until we have real ML model)
-        // Values are typically 1-10
-        const sleep = status.sleepQuality || 7;
-        const stress = status.stressLevel || 5;
-        const sore = status.sorenessLevel || 5;
+        let finalReadiness = 100;
         
-        // 100% = max sleep(10), min stress(1), min sore(1)
-        const score = (sleep * 4) + ((10 - stress) * 3) + ((10 - sore) * 3);
-        const finalReadiness = Math.max(10, Math.min(100, Math.round(score)));
+        // Use REAL ReadinessScore from Backend if available (it's 1-10)
+        if (status.readinessScore !== undefined && status.readinessScore !== null) {
+            finalReadiness = status.readinessScore * 10;
+        } else {
+            // Fallback formula if data is incomplete
+            const sleep = status.sleepQuality || 7;
+            const stress = status.stressLevel || 5;
+            const sore = status.sorenessLevel || 5;
+            const score = (sleep * 4) + ((10 - stress) * 3) + ((10 - sore) * 3);
+            finalReadiness = Math.max(10, Math.min(100, Math.round(score)));
+        }
+        
         setReadiness(finalReadiness);
         
         if (finalReadiness >= 80) setStatusText('dashboard.cns_ready');

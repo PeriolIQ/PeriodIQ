@@ -10,5 +10,12 @@ public class InMemoryRuleDefinitionRepository : InMemoryRepository<RuleDefinitio
 public class InMemoryUserProfileRepository : InMemoryRepository<UserProfile>, IUserProfileRepository { }
 public class InMemoryPersonalRecordHistoryRepository : InMemoryRepository<PersonalRecordHistory>, IPersonalRecordHistoryRepository { }
 public class InMemoryDailyCnsStatusRepository : InMemoryRepository<DailyCnsStatus>, IDailyCnsStatusRepository { }
-public class InMemoryWorkoutPlanRepository : InMemoryRepository<WorkoutPlan>, IWorkoutPlanRepository { }
+public class InMemoryWorkoutPlanRepository : InMemoryRepository<WorkoutPlan>, IWorkoutPlanRepository 
+{
+    public async Task<IEnumerable<WorkoutPlan>> GetPlansByUserIdAsync(string userId)
+    {
+        var all = await GetAllAsync();
+        return all.Where(x => x.UserId == userId);
+    }
+}
 public class InMemoryWorkoutSessionLogRepository : InMemoryRepository<WorkoutSessionLog>, IWorkoutSessionLogRepository { }

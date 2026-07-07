@@ -34,7 +34,11 @@ export default function PlanPreview({ plan, t }) {
           </div>
         </div>
         <Badge variant={readValue(plan, 'status', 'Status') === 'Active' ? 'success' : 'neutral'}>
-          {readValue(plan, 'status', 'Status') === 'Active' ? t('common.active') : readValue(plan, 'status', 'Status')}
+          {readValue(plan, 'status', 'Status') === 'Active' 
+            ? t('common.active') 
+            : (readValue(plan, 'status', 'Status') === 'Completed' 
+                ? t('common.completed') 
+                : readValue(plan, 'status', 'Status'))}
         </Badge>
       </div>
 

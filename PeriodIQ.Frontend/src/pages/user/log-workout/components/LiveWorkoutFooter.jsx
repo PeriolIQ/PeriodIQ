@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-const LiveWorkoutFooter = ({ onEndSession }) => {
+const LiveWorkoutFooter = ({ onEndSession, onCancelSession }) => {
     const { t } = useTranslation();
     const [rpe, setRpe] = useState(8.0);
     const rpePercentage = ((rpe - 1) / 9) * 100;
@@ -55,11 +55,18 @@ const LiveWorkoutFooter = ({ onEndSession }) => {
                     </div>
                 </div>
                 
-                <div className="w-full md:w-auto mt-4 md:mt-0 flex-shrink-0">
+                <div className="w-full md:w-auto mt-4 md:mt-0 flex-shrink-0 flex gap-2">
+                    <button 
+                        onClick={() => onCancelSession && onCancelSession()}
+                        className="w-full md:w-auto py-4 px-6 bg-muted text-muted-foreground border border-border hover:bg-destructive hover:text-destructive-foreground hover:border-destructive font-bold uppercase tracking-widest text-sm rounded-lg transition-all"
+                    >
+                        Hủy
+                    </button>
                     <button 
                         onClick={() => onEndSession && onEndSession(rpe)}
-                        className="w-full md:w-auto bg-primary text-primary-foreground font-bold text-lg px-8 py-4 rounded-lg hover:bg-primary/90 transition-colors uppercase tracking-wider shadow-[0_0_20px_rgba(37,99,235,0.3)] hover:shadow-[0_0_30px_rgba(37,99,235,0.5)]">
-                        {t('live_workout.end_session').toUpperCase()}
+                        className="w-full md:w-auto py-4 px-6 md:px-8 bg-blue-600 hover:bg-blue-500 text-white font-bold uppercase tracking-widest text-sm rounded-lg shadow-lg shadow-blue-600/20 hover:shadow-blue-500/40 transition-all transform hover:-translate-y-1"
+                    >
+                        {t('live_workout.end_session')}
                     </button>
                 </div>
             </div>

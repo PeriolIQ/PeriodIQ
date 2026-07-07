@@ -1,7 +1,8 @@
 {
   "common": {
-    "loading": "Processing...",
+    "loading": "Loading...",
     "active": "Active",
+    "completed": "Completed",
     "discard": "Discard",
     "save": "Save Changes",
     "saved": "SAVED",
@@ -99,7 +100,7 @@
     "generating": "Generating Plan",
     "generate_btn": "Generate 4-Week Plan",
     "my_plans": "My Plans",
-    "api_list": "List from API",
+    "api_list": "List from User",
     "no_plans": "No plans yet. Create your first plan using the form.",
     "not_selected": "No plan selected",
     "select_prompt": "Create a new plan or select one to view the 4-week details.",

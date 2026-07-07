@@ -1,4 +1,4 @@
-﻿import { cn } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { Sparkles, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -11,7 +11,7 @@ export default function PageHeader({ onRefresh, isRefreshing, t }) {
           {t('plan.rule_engine')}
         </div>
         <h1 className="text-3xl font-black tracking-tight text-foreground md:text-4xl">{t('plan.title')}</h1>
-        <p className="mt-2 max-w-2xl text-sm font-medium text-muted-foreground">{t('plan.subtitle')}</p>
+        <p className="mt-2 max-w-2xl text-sm font-medium text-muted-foreground line-clamp-2">{t('plan.subtitle')}</p>
       </div>
       <Button variant="outline" className="h-10 w-fit gap-2" onClick={onRefresh} disabled={isRefreshing}>
         <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />

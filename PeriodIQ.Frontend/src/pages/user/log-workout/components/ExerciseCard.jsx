@@ -2,12 +2,15 @@ import React from 'react';
 import { X, CheckCircle2, Check, ChevronDown } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-const ExerciseCard = ({ exerciseNumber, name, targetCns, plan, log, isMinimized = false, status = 'active', onLogChange }) => {
+const ExerciseCard = ({ exerciseNumber, name, targetCns, plan, log, isMinimized = false, status = 'active', onLogChange, onComplete, onToggleMinimize }) => {
     const { t } = useTranslation();
     if (isMinimized) {
         return (
             <div className="bg-card rounded-xl border border-border overflow-hidden mb-6 opacity-80">
-                <div className="p-4 border-b border-border flex justify-between items-center cursor-pointer hover:bg-muted/50 transition-colors">
+                <div 
+                    className="p-4 border-b border-border flex justify-between items-center cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => onToggleMinimize && onToggleMinimize(exerciseNumber - 1, false)}
+                >
                     <div>
                         <div className="font-bold text-xs text-muted-foreground mb-1 uppercase">{t('live_workout.exercise_label', { n: exerciseNumber })}</div>
                         <h3 className="font-bold text-lg text-foreground uppercase">{name}</h3>
@@ -36,7 +39,10 @@ const ExerciseCard = ({ exerciseNumber, name, targetCns, plan, log, isMinimized 
                 <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary shadow-[0_0_10px_rgba(37,99,235,0.5)] z-10"></div>
             )}
             
-            <div className="p-4 md:p-6 border-b border-border flex justify-between items-center bg-muted/20">
+            <div 
+                className="p-4 md:p-6 border-b border-border flex justify-between items-center bg-muted/20 cursor-pointer hover:bg-muted/30 transition-colors"
+                onClick={() => onToggleMinimize && onToggleMinimize(exerciseNumber - 1, true)}
+            >
                 <div>
                     <div className="font-bold text-xs text-muted-foreground mb-1 uppercase">{t('live_workout.exercise_label', { n: exerciseNumber })}</div>
                     <h3 className="font-bold text-xl md:text-2xl text-foreground uppercase">{name}</h3>
@@ -123,7 +129,10 @@ const ExerciseCard = ({ exerciseNumber, name, targetCns, plan, log, isMinimized 
                                 <CheckCircle2 className="w-6 h-6 fill-current text-background" />
                             </button>
                         ) : (
-                            <button className="w-full md:w-12 h-12 rounded bg-muted border border-border hover:border-primary hover:text-primary text-muted-foreground flex items-center justify-center transition-colors">
+                            <button 
+                                onClick={() => onComplete && onComplete(exerciseNumber - 1)}
+                                className="w-full md:w-12 h-12 rounded bg-muted border border-border hover:border-primary hover:text-primary text-muted-foreground flex items-center justify-center transition-colors"
+                            >
                                 <Check className="w-6 h-6" />
                             </button>
                         )}

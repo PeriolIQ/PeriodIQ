@@ -18,3 +18,8 @@ export async function getWorkoutPlanById(id) {
   const response = await api.get(`/api/workoutplans/${id}`);
   return unwrapResponse(response);
 }
+
+export async function activatePlan(planId) {
+  const response = await api.patch(`/api/workoutplans/${planId}/activate`);
+  return unwrapResponse(response);
+}

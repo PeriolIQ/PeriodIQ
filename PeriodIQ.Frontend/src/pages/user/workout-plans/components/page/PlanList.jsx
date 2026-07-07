@@ -10,7 +10,7 @@ export default function PlanList({ plans, selectedId, onSelect, isLoading }) {
   const { t } = useTranslation();
   
   return (
-    <div className="flex h-[600px] flex-col overflow-hidden rounded-xl border border-border bg-card">
+    <div className="flex h-[670px] flex-col overflow-hidden rounded-xl border border-border bg-card">
       <div className="border-b border-border bg-muted/30 p-4 flex justify-between items-center">
         <h2 className="font-bold">{t('plan.my_plans')}</h2>
         <Badge variant="neutral" className="text-[10px] uppercase">{t('plan.api_list')}</Badge>
@@ -32,7 +32,11 @@ export default function PlanList({ plans, selectedId, onSelect, isLoading }) {
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     <Badge variant={readValue(plan, 'status', 'Status') === 'Active' ? 'success' : 'neutral'}>
-                      {readValue(plan, 'status', 'Status') === 'Active' ? t('common.active') : (readValue(plan, 'status', 'Status') || t('plan.plan_label'))}
+                      {readValue(plan, 'status', 'Status') === 'Active' 
+                        ? t('common.active') 
+                        : (readValue(plan, 'status', 'Status') === 'Completed' 
+                            ? t('common.completed') 
+                            : (readValue(plan, 'status', 'Status') || t('plan.plan_label')))}
                     </Badge>
                     <Link to={`/workout-plans/${id}`} onClick={(e) => e.stopPropagation()} className="text-xs text-blue-600 hover:underline font-medium">{t('plan.view_detail')} &rarr;</Link>
                   </div>

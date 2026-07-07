@@ -2,6 +2,7 @@
   "common": {
     "loading": "Đang xử lý...",
     "active": "Đang chạy",
+    "completed": "Đã hoàn thành",
     "discard": "Hủy",
     "save": "Lưu thay đổi",
     "saved": "ĐÃ LƯU",
@@ -99,7 +100,7 @@
     "generating": "Đang sinh giáo án",
     "generate_btn": "Tạo giáo án 4 tuần",
     "my_plans": "Plan của tôi",
-    "api_list": "Danh sách lấy từ API",
+    "api_list": "Danh sách lấy từ Người dùng",
     "no_plans": "Chưa có giáo án. Hãy tạo plan đầu tiên bằng form bên trái.",
     "not_selected": "Chưa chọn giáo án",
     "select_prompt": "Tạo giáo án mới hoặc chọn một plan trong danh sách để xem chi tiết 4 tuần.",

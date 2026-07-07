@@ -131,7 +131,7 @@ export default function WorkoutPlansPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 pb-12">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 ">
       <PageHeader onRefresh={loadPlans} isRefreshing={isLoadingPlans} t={t} />
 
       <section className="grid gap-4 md:grid-cols-4">

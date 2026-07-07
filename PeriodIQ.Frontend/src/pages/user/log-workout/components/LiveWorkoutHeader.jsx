@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 const LiveWorkoutHeader = ({ title }) => {
     const { t } = useTranslation();
     const [showColon, setShowColon] = useState(true);
-    const [secondsElapsed, setSecondsElapsed] = useState(42 * 60 + 15);
+    const [secondsElapsed, setSecondsElapsed] = useState(0);
     
     useEffect(() => {
         const interval = setInterval(() => {

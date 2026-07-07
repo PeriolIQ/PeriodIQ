@@ -162,7 +162,7 @@ builder.Services.AddScoped<WorkoutSessionLogService>();
 builder.Services.AddSingleton<IAmazonSimpleEmailService>(
     new AmazonSimpleEmailServiceClient(new AmazonSimpleEmailServiceConfig { RegionEndpoint = awsRegionEndpoint }));
 builder.Services.AddScoped<SqsHandler>();
-builder.Services.AddHostedService<SqsWorkerBackgroundService>();
+// builder.Services.AddHostedService<SqsWorkerBackgroundService>(); // Đã có Lambda thật trên AWS lo
 
 // ─── Swagger / Scalar ─────────────────────────────────────────────────────
 builder.Services.AddEndpointsApiExplorer();

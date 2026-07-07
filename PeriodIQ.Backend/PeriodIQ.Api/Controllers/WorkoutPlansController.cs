@@ -69,8 +69,21 @@ public class WorkoutPlansController : ControllerBase
         try
         {
             var userId = GetCurrentUserId(null);
-            var all = await _workoutPlanService.GetAllAsync();
-            var myPlans = all.Where(x => x.UserId == userId).ToList();
+            var myPlans = (await _workoutPlanService.GetPlansByUserIdAsync(userId)).ToList();
+            
+            // SELF HEALING: Nếu có nhiều giáo án Active, chỉ giữ lại cái mới nhất, còn lại chuyển thành Completed
+            var activePlans = myPlans.Where(x => x.Status == "Active").OrderByDescending(x => x.GeneratedAt).ToList();
+            if (activePlans.Count > 1)
+            {
+                var keepActive = activePlans.First();
+                var toDeactivate = activePlans.Skip(1);
+                foreach(var p in toDeactivate)
+                {
+                    p.Status = "Completed";
+                    await _workoutPlanService.UpdateAsync(p);
+                }
+            }
+
             return Ok(myPlans);
         }
         catch (UnauthorizedAccessException)
@@ -100,5 +113,21 @@ public class WorkoutPlansController : ControllerBase
     {
         await _workoutPlanService.DeleteAsync(id);
         return NoContent();
+    }
+
+    [HttpPatch("{id}/activate")]
+    public async Task<IActionResult> Activate(string id)
+    {
+        try
+        {
+            var userId = GetCurrentUserId(null);
+            await _workoutPlanService.ActivatePlanAsync(id, userId);
+            var updatedPlan = await _workoutPlanService.GetByIdAsync(id);
+            return Ok(updatedPlan);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Unauthorized();
+        }
     }
 }
